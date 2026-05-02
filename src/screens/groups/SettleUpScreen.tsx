@@ -99,6 +99,9 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
   };
 
   const renderDebt = ({ item }: { item: Debt }) => {
+    const fromMember = group?.members.find(m => m.uid === item.from);
+    const toMember = group?.members.find(m => m.uid === item.to);
+
     const isMeFrom = item.from === user?.id;
     const isMeTo = item.to === user?.id;
     const fromName = isMeFrom ? user?.name : (fromMember?.name || 'User');
