@@ -1,0 +1,62 @@
+import React from 'react';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { colors } from '../components/theme';
+import GroupListScreen from '../screens/groups/GroupListScreen';
+import CreateGroupScreen from '../screens/groups/CreateGroupScreen';
+import GroupDetailScreen from '../screens/groups/GroupDetailScreen';
+import AddExpenseScreen from '../screens/expenses/AddExpenseScreen';
+import ExpenseDetailScreen from '../screens/expenses/ExpenseDetailScreen';
+import SettleUpScreen from '../screens/groups/SettleUpScreen';
+import GroupMembersScreen from '../screens/groups/GroupMembersScreen';
+import type { GroupStackParamList } from './types';
+
+const Stack = createNativeStackNavigator<GroupStackParamList>();
+
+export default function GroupStack() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: colors.surface },
+        headerTintColor: colors.textPrimary,
+        headerTitleStyle: { fontWeight: '600' },
+        headerShadowVisible: false,
+        animation: 'slide_from_right',
+      }}>
+      <Stack.Screen
+        name="GroupList"
+        component={GroupListScreen}
+        options={{ title: 'Groups' }}
+      />
+      <Stack.Screen
+        name="CreateGroup"
+        component={CreateGroupScreen}
+        options={{ title: 'New Group' }}
+      />
+      <Stack.Screen
+        name="GroupDetail"
+        component={GroupDetailScreen}
+        options={({ route }) => ({ title: route.params.groupName })}
+      />
+      <Stack.Screen
+        name="AddExpense"
+        component={AddExpenseScreen}
+        options={{ title: 'Add Expense' }}
+      />
+      <Stack.Screen
+        name="ExpenseDetail"
+        component={ExpenseDetailScreen}
+        options={{ title: 'Expense Details' }}
+      />
+      <Stack.Screen
+        name="SettleUp"
+        component={SettleUpScreen}
+        options={{ title: 'Settle Up' }}
+      />
+      <Stack.Screen
+        name="GroupMembers"
+        component={GroupMembersScreen}
+        options={{ title: 'Group Members' }}
+      />
+    </Stack.Navigator>
+  );
+}
