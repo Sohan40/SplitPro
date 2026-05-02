@@ -36,7 +36,12 @@ export default function GroupMembersScreen({ route, navigation }: any) {
   };
 
   useEffect(() => {
-    fetchGroup();
+    const unsubscribe = groupService.subscribeToGroup(groupId, (data) => {
+      setGroup(data);
+      setLoading(false);
+    });
+
+    return unsubscribe;
   }, [groupId]);
 
   const handleAddMember = async () => {
@@ -154,12 +159,15 @@ export default function GroupMembersScreen({ route, navigation }: any) {
         contentContainerStyle={styles.list}
         renderItem={({ item }) => {
           const balance = group?.balances?.[item.uid] || 0;
+          const isMe = item.uid === user?.id;
+          const displayName = isMe ? user?.name : item.name;
+          
           return (
             <Card style={styles.memberCard} padding="md">
               <View style={styles.row}>
-                <Avatar name={item.name} size={48} />
+                <Avatar name={displayName} size={48} />
                 <View style={styles.info}>
-                  <Text style={styles.name}>{item.name}</Text>
+                  <Text style={styles.name}>{displayName}{isMe ? ' (You)' : ''}</Text>
                   <Text style={styles.email}>{item.email}</Text>
                 </View>
                 <BalanceBadge amount={balance} size="sm" />

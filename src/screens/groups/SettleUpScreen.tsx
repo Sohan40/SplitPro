@@ -99,17 +99,19 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
   };
 
   const renderDebt = ({ item }: { item: Debt }) => {
-    const fromMember = group?.members.find(m => m.uid === item.from);
-    const toMember = group?.members.find(m => m.uid === item.to);
+    const isMeFrom = item.from === user?.id;
+    const isMeTo = item.to === user?.id;
+    const fromName = isMeFrom ? user?.name : (fromMember?.name || 'User');
+    const toName = isMeTo ? user?.name : (toMember?.name || 'User');
 
-    const isInvolved = item.from === user?.id || item.to === user?.id;
+    const isInvolved = isMeFrom || isMeTo;
 
     return (
       <Card style={styles.debtCard} padding="md">
         <View style={styles.debtRow}>
           <View style={styles.personInfo}>
-            <Avatar name={fromMember?.name || 'User'} size={32} />
-            <Text style={styles.name} numberOfLines={1}>{item.from === user?.id ? 'You' : fromMember?.name}</Text>
+            <Avatar name={fromName} size={32} />
+            <Text style={styles.name} numberOfLines={1}>{isMeFrom ? 'You' : fromName}</Text>
           </View>
           
           <View style={styles.arrowContainer}>
@@ -118,8 +120,8 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
           </View>
 
           <View style={styles.personInfo}>
-            <Avatar name={toMember?.name || 'User'} size={32} />
-            <Text style={styles.name} numberOfLines={1}>{item.to === user?.id ? 'You' : toMember?.name}</Text>
+            <Avatar name={toName} size={32} />
+            <Text style={styles.name} numberOfLines={1}>{isMeTo ? 'You' : toName}</Text>
           </View>
         </View>
 

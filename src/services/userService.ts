@@ -42,12 +42,64 @@ export const userService = {
   },
 
   /**
-   * Update a user's display name
+   * Update a user's display name and propagate changes to groups and expenses
    */
   async updateUserName(id: string, name: string): Promise<void> {
-    await db.collection(USERS_COLLECTION).doc(id).update({
-      name,
-      updatedAt: Date.now(),
+    const batch = db.batch();
+
+    // 1. Update User Profile
+    const userRef = db.collection(USERS_COLLECTION).doc(id);
+    batch.update(userRef, { name, updatedAt: Date.now() });
+
+    // 2. Update all Groups where user is a member
+    const groupsSnapshot = await db.collection('groups')
+      .where('memberIds', 'array-contains', id)
+      .get();
+
+    groupsSnapshot.forEach(groupDoc => {
+      const groupData = groupDoc.data();
+      const updatedMembers = groupData.members.map((m: any) => 
+        m.uid === id ? { ...m, name } : m
+      );
+      batch.update(groupDoc.ref, { members: updatedMembers, updatedAt: Date.now() });
     });
+
+    // 3. Update all Expenses where user is the payer
+    const expensesPaidSnapshot = await db.collection('expenses')
+      .where('paidBy.uid', '==', id)
+      .get();
+
+    expensesPaidSnapshot.forEach(expenseDoc => {
+      batch.update(expenseDoc.ref, { 'paidBy.name': name, updatedAt: Date.now() });
+    });
+
+    // 4. Update all Expenses where user is a participant
+    // Note: Firestore doesn't support array-contains for nested objects easily, 
+    // so we search by groupId from the groups we already found and update locally.
+    // However, a simpler way since it's an MVP is to just search all expenses 
+    // in those groups.
+    for (const groupDoc of groupsSnapshot.docs) {
+      const expensesInGroup = await db.collection('expenses')
+        .where('groupId', '==', groupDoc.id)
+        .get();
+
+      expensesInGroup.forEach(expenseDoc => {
+        const expenseData = expenseDoc.data();
+        let changed = false;
+        const updatedParticipants = expenseData.participants.map((p: any) => {
+          if (p.uid === id) {
+            changed = true;
+            return { ...p, name };
+          }
+          return p;
+        });
+        
+        if (changed) {
+          batch.update(expenseDoc.ref, { participants: updatedParticipants, updatedAt: Date.now() });
+        }
+      });
+    }
+
+    await batch.commit();
   },
 };
