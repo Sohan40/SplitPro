@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
 import { colors, typography, spacing, borderRadius } from '../../components/theme';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
@@ -13,6 +13,9 @@ import Icon from 'react-native-vector-icons/Ionicons';
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const [summary, setSummary] = useState({ totalBalance: 0, youOwe: 0, youAreOwed: 0 });
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [newName, setNewName] = useState(user?.name || '');
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -70,11 +73,38 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleUpdateName = async () => {
+    if (!user || !newName.trim()) return;
+    
+    try {
+      setUpdating(true);
+      await userService.updateUserName(user.id, newName.trim());
+      setIsEditModalVisible(false);
+      Alert.alert('Success', 'Profile updated successfully!');
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert('Error', error.message || 'Failed to update profile');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <Avatar name={user?.name || 'User'} size={80} />
-        <Text style={styles.userName}>{user?.name}</Text>
+        <View style={styles.nameRow}>
+          <Text style={styles.userName}>{user?.name}</Text>
+          <TouchableOpacity 
+            style={styles.editIcon} 
+            onPress={() => {
+              setNewName(user?.name || '');
+              setIsEditModalVisible(true);
+            }}
+          >
+            <Icon name="pencil" size={16} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.userEmail}>{user?.email}</Text>
       </View>
 
@@ -128,6 +158,44 @@ export default function ProfileScreen() {
       </View>
 
       <Text style={styles.version}>SplitPro v1.0.0</Text>
+
+      {/* Edit Name Modal */}
+      <Modal
+        visible={isEditModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Card style={styles.modalContent} padding="lg">
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Update Profile</Text>
+              <TouchableOpacity onPress={() => setIsEditModalVisible(false)}>
+                <Icon name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            
+            <Text style={styles.modalLabel}>Display Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Your name"
+              value={newName}
+              onChangeText={setNewName}
+              autoFocus
+            />
+
+            <TouchableOpacity 
+              style={[styles.saveButton, updating && styles.disabledButton]} 
+              onPress={handleUpdateName}
+              disabled={updating}
+            >
+              <Text style={styles.saveButtonText}>
+                {updating ? 'Updating...' : 'Save Changes'}
+              </Text>
+            </TouchableOpacity>
+          </Card>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -146,7 +214,15 @@ const styles = StyleSheet.create({
   },
   userName: {
     ...typography.heading2,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: spacing.md,
+  },
+  editIcon: {
+    marginLeft: spacing.xs,
+    padding: spacing.xs,
   },
   userEmail: {
     ...typography.caption,
@@ -211,5 +287,50 @@ const styles = StyleSheet.create({
     ...typography.caption,
     marginTop: spacing.huge,
     color: colors.textTertiary,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  modalContent: {
+    backgroundColor: colors.surface,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  modalTitle: {
+    ...typography.heading3,
+  },
+  modalLabel: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
+  input: {
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    ...typography.body,
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  saveButton: {
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    ...typography.bodyBold,
+    color: colors.white,
+  },
+  disabledButton: {
+    opacity: 0.7,
   },
 });

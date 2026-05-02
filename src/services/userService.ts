@@ -40,4 +40,14 @@ export const userService = {
   async deleteUser(id: string): Promise<void> {
     await db.collection(USERS_COLLECTION).doc(id).delete();
   },
+
+  /**
+   * Update a user's display name
+   */
+  async updateUserName(id: string, name: string): Promise<void> {
+    await db.collection(USERS_COLLECTION).doc(id).update({
+      name,
+      updatedAt: Date.now(),
+    });
+  },
 };
