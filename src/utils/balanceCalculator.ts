@@ -6,6 +6,8 @@ export interface UserSummary {
   youAreOwed: number;
 }
 
+const BALANCE_EPSILON = 0.01;
+
 /**
  * Calculates the total balance summary for a user across all their groups.
  */
@@ -29,12 +31,16 @@ export function calculateUserSummary(groups: Group[], userId: string): UserSumma
   };
 }
 
+export function hasOutstandingBalances(groups: Group[], userId: string): boolean {
+  return groups.some(group => Math.abs(group.balances?.[userId] || 0) > BALANCE_EPSILON);
+}
+
 /**
- * Formats a balance for display (e.g., "+₹1,234.56" or "-₹1,234.56")
+ * Formats a balance for display (e.g., "+\u20B91,234.56" or "-\u20B91,234.56")
  */
 export function formatBalance(amount: number): string {
   const isNegative = amount < 0;
   const absAmount = Math.abs(amount).toFixed(2);
   const sign = isNegative ? '-' : (amount > 0 ? '+' : '');
-  return `${sign}₹${absAmount}`;
+  return `${sign}\u20B9${absAmount}`;
 }

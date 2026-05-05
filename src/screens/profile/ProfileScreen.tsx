@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import { userService } from '../../services/userService';
 import { auth } from '../../services/firebase';
-import { calculateUserSummary } from '../../utils/balanceCalculator';
+import { calculateUserSummary, hasOutstandingBalances } from '../../utils/balanceCalculator';
 import Card from '../../components/Card';
 import Avatar from '../../components/Avatar';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -19,7 +19,7 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!user) return;
-    
+
     const fetchSummary = async () => {
       try {
         const groups = await groupService.getUserGroups(user.id);
@@ -41,21 +41,39 @@ export default function ProfileScreen() {
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      'Delete Account', 
-      'This action is irreversible. All your data will be permanently deleted. Are you sure?', 
+      'Delete Account',
+      'This action is irreversible. All your data will be permanently deleted. Are you sure?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive', 
+        {
+          text: 'Delete',
+          style: 'destructive',
           onPress: async () => {
             if (!user) return;
             try {
-              // Delete from Firestore
+              const groups = await groupService.getUserGroups(user.id);
+              const latestSummary = calculateUserSummary(groups, user.id);
+
+              if (hasOutstandingBalances(groups, user.id)) {
+                const unsettledDetails: string[] = [];
+
+                if (latestSummary.youOwe > 0.01) {
+                  unsettledDetails.push(`you still owe \u20B9${latestSummary.youOwe.toFixed(2)}`);
+                }
+
+                if (latestSummary.youAreOwed > 0.01) {
+                  unsettledDetails.push(`you are still owed \u20B9${latestSummary.youAreOwed.toFixed(2)}`);
+                }
+
+                Alert.alert(
+                  'Settle Up Required',
+                  `Please settle all balances before deleting your account. Right now ${unsettledDetails.join(' and ')}.`
+                );
+                return;
+              }
+
               await userService.deleteUser(user.id);
-              // Delete from Firebase Auth
               await auth.currentUser?.delete();
-              // The AuthContext onAuthStateChanged will handle navigating back to login
             } catch (error: any) {
               console.error(error);
               if (error.code === 'auth/requires-recent-login') {
@@ -67,7 +85,7 @@ export default function ProfileScreen() {
                 Alert.alert('Error', error.message || 'Failed to delete account.');
               }
             }
-          } 
+          }
         },
       ]
     );
@@ -75,7 +93,7 @@ export default function ProfileScreen() {
 
   const handleUpdateName = async () => {
     if (!user || !newName.trim()) return;
-    
+
     try {
       setUpdating(true);
       await userService.updateUserName(user.id, newName.trim());
@@ -95,8 +113,8 @@ export default function ProfileScreen() {
         <Avatar name={user?.name || 'User'} size={80} />
         <View style={styles.nameRow}>
           <Text style={styles.userName}>{user?.name}</Text>
-          <TouchableOpacity 
-            style={styles.editIcon} 
+          <TouchableOpacity
+            style={styles.editIcon}
             onPress={() => {
               setNewName(user?.name || '');
               setIsEditModalVisible(true);
@@ -111,11 +129,13 @@ export default function ProfileScreen() {
       <View style={styles.summaryGrid}>
         <Card style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Total Balance</Text>
-          <Text style={[
-            styles.summaryAmount, 
-            { color: summary.totalBalance >= 0 ? colors.primary : colors.owes }
-          ]}>
-            ₹{summary.totalBalance.toFixed(2)}
+          <Text
+            style={[
+              styles.summaryAmount,
+              { color: summary.totalBalance >= 0 ? colors.primary : colors.owes }
+            ]}
+          >
+            {'\u20B9'}{summary.totalBalance.toFixed(2)}
           </Text>
         </Card>
       </View>
@@ -123,11 +143,11 @@ export default function ProfileScreen() {
       <View style={styles.row}>
         <Card style={[styles.miniCard, { marginRight: spacing.md }]}>
           <Text style={styles.miniLabel}>You are owed</Text>
-          <Text style={[styles.miniAmount, { color: colors.owed }]}>₹{summary.youAreOwed.toFixed(2)}</Text>
+          <Text style={[styles.miniAmount, { color: colors.owed }]}>{'\u20B9'}{summary.youAreOwed.toFixed(2)}</Text>
         </Card>
         <Card style={styles.miniCard}>
           <Text style={styles.miniLabel}>You owe</Text>
-          <Text style={[styles.miniAmount, { color: colors.owes }]}>₹{summary.youOwe.toFixed(2)}</Text>
+          <Text style={[styles.miniAmount, { color: colors.owes }]}>{'\u20B9'}{summary.youOwe.toFixed(2)}</Text>
         </Card>
       </View>
 
@@ -159,7 +179,6 @@ export default function ProfileScreen() {
 
       <Text style={styles.version}>SplitPro v1.0.0</Text>
 
-      {/* Edit Name Modal */}
       <Modal
         visible={isEditModalVisible}
         transparent
@@ -174,7 +193,7 @@ export default function ProfileScreen() {
                 <Icon name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.modalLabel}>Display Name</Text>
             <TextInput
               style={styles.input}
@@ -184,8 +203,8 @@ export default function ProfileScreen() {
               autoFocus
             />
 
-            <TouchableOpacity 
-              style={[styles.saveButton, updating && styles.disabledButton]} 
+            <TouchableOpacity
+              style={[styles.saveButton, updating && styles.disabledButton]}
               onPress={handleUpdateName}
               disabled={updating}
             >
