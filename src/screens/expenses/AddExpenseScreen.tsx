@@ -6,7 +6,7 @@ import { groupService } from '../../services/groupService';
 import { expenseService } from '../../services/expenseService';
 import { notificationService } from '../../services/notificationService';
 import type { Group } from '../../models/Group';
-import type { Expense, Category, SplitType } from '../../models/Expense';
+import type { Expense, Category, SplitType, ExpenseParticipant } from '../../models/Expense';
 import type { AddExpenseScreenProps } from '../../navigation/types';
 import { calculateEqualSplit, calculateCustomSplit, calculatePercentageSplit, calculateSharesSplit } from '../../utils/splitCalculator';
 import Button from '../../components/Button';
@@ -14,6 +14,15 @@ import Card from '../../components/Card';
 import Avatar from '../../components/Avatar';
 import CategoryIcon from '../../components/CategoryIcon';
 import Icon from 'react-native-vector-icons/Ionicons';
+
+type MemberInputState = {
+  included: boolean;
+  customAmount: string;
+  percent: string;
+  shares: string;
+};
+
+const formatCurrency = (value: number) => `\u20B9${value.toFixed(2)}`;
 
 export default function AddExpenseScreen({ route, navigation }: AddExpenseScreenProps) {
   const { groupId, groupName, expenseId } = route.params;
@@ -30,12 +39,7 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
   const [splitType, setSplitType] = useState<SplitType>('equal');
   const [paidByUid, setPaidByUid] = useState<string>('');
 
-  const [memberInputs, setMemberInputs] = useState<Record<string, {
-    included: boolean;
-    customAmount: string;
-    percent: string;
-    shares: string;
-  }>>({});
+  const [memberInputs, setMemberInputs] = useState<Record<string, MemberInputState>>({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -44,12 +48,7 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
         setGroup(groupData);
 
         if (groupData && user) {
-          const initialInputs: Record<string, {
-            included: boolean;
-            customAmount: string;
-            percent: string;
-            shares: string;
-          }> = {};
+          const initialInputs: Record<string, MemberInputState> = {};
 
           if (expenseId) {
             const exp = await expenseService.getExpense(expenseId);
@@ -96,14 +95,18 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
     fetchData();
   }, [groupId, expenseId, user]);
 
-  const updateMemberInput = (uid: string, field: string, value: boolean | string) => {
+  const updateMemberInput = (uid: string, field: keyof MemberInputState, value: boolean | string) => {
     setMemberInputs(prev => ({
       ...prev,
       [uid]: {
         ...(prev[uid] || {}),
-        [field]: value,
+        [field]: value as never,
       },
     }));
+  };
+
+  const toggleIncluded = (uid: string) => {
+    updateMemberInput(uid, 'included', !memberInputs[uid]?.included);
   };
 
   const adjustShares = (uid: string, delta: number) => {
@@ -112,56 +115,109 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
     updateMemberInput(uid, 'shares', String(nextShares));
   };
 
+  const buildParticipants = (numAmount: number): ExpenseParticipant[] => {
+    if (!group) return [];
+
+    const includedMembers = group.members.filter(member => memberInputs[member.uid]?.included);
+
+    switch (splitType) {
+      case 'equal':
+        return calculateEqualSplit(numAmount, includedMembers);
+      case 'custom':
+        return calculateCustomSplit(
+          numAmount,
+          includedMembers.map(member => ({
+            uid: member.uid,
+            name: member.name,
+            amount: parseFloat(memberInputs[member.uid]?.customAmount) || 0,
+          }))
+        );
+      case 'percentage':
+        return calculatePercentageSplit(
+          numAmount,
+          includedMembers.map(member => ({
+            uid: member.uid,
+            name: member.name,
+            percent: parseFloat(memberInputs[member.uid]?.percent) || 0,
+          }))
+        );
+      case 'shares':
+        return calculateSharesSplit(
+          numAmount,
+          includedMembers.map(member => ({
+            uid: member.uid,
+            name: member.name,
+            shares: parseFloat(memberInputs[member.uid]?.shares) || 0,
+          }))
+        );
+      default:
+        return [];
+    }
+  };
+
+  const buildPreviewMap = (): Record<string, number> => {
+    if (!group) return {};
+
+    const preview: Record<string, number> = {};
+    const numAmount = parseFloat(amount);
+
+    group.members.forEach(member => {
+      preview[member.uid] = 0;
+    });
+
+    if (Number.isNaN(numAmount) || numAmount <= 0) {
+      return preview;
+    }
+
+    const includedMembers = group.members.filter(member => memberInputs[member.uid]?.included);
+
+    try {
+      const participants = buildParticipants(numAmount);
+      participants.forEach(participant => {
+        preview[participant.uid] = participant.amount;
+      });
+      return preview;
+    } catch {
+      if (splitType === 'custom') {
+        includedMembers.forEach(member => {
+          preview[member.uid] = parseFloat(memberInputs[member.uid]?.customAmount) || 0;
+        });
+        return preview;
+      }
+
+      if (splitType === 'percentage') {
+        includedMembers.forEach(member => {
+          const percent = parseFloat(memberInputs[member.uid]?.percent) || 0;
+          preview[member.uid] = Math.round(numAmount * (percent / 100) * 100) / 100;
+        });
+        return preview;
+      }
+
+      return preview;
+    }
+  };
+
   const handleSave = async () => {
     if (!group || !user) return;
 
     const numAmount = parseFloat(amount);
-    if (!description.trim() || isNaN(numAmount) || numAmount <= 0) {
+    if (!description.trim() || Number.isNaN(numAmount) || numAmount <= 0) {
       Alert.alert('Invalid Input', 'Please enter a valid description and amount.');
+      return;
+    }
+
+    const includedMembers = group.members.filter(member => memberInputs[member.uid]?.included);
+    if (includedMembers.length === 0) {
+      Alert.alert('Select Participants', 'Please include at least one participant for this expense.');
       return;
     }
 
     try {
       setSaving(true);
-      let participants: any[] = [];
+      const participants = buildParticipants(numAmount);
       const paidByMember = group.members.find(member => member.uid === paidByUid);
 
       if (!paidByMember) throw new Error('Payer not found');
-
-      switch (splitType) {
-        case 'equal': {
-          const includedMembers = group.members.filter(member => memberInputs[member.uid]?.included);
-          participants = calculateEqualSplit(numAmount, includedMembers);
-          break;
-        }
-        case 'custom': {
-          const customMembers = group.members.map(member => ({
-            uid: member.uid,
-            name: member.name,
-            amount: parseFloat(memberInputs[member.uid]?.customAmount) || 0,
-          }));
-          participants = calculateCustomSplit(numAmount, customMembers);
-          break;
-        }
-        case 'percentage': {
-          const pctMembers = group.members.map(member => ({
-            uid: member.uid,
-            name: member.name,
-            percent: parseFloat(memberInputs[member.uid]?.percent) || 0,
-          }));
-          participants = calculatePercentageSplit(numAmount, pctMembers);
-          break;
-        }
-        case 'shares': {
-          const sharesMembers = group.members.map(member => ({
-            uid: member.uid,
-            name: member.name,
-            shares: parseFloat(memberInputs[member.uid]?.shares) || 0,
-          }));
-          participants = calculateSharesSplit(numAmount, sharesMembers);
-          break;
-        }
-      }
 
       const expenseData: Omit<Expense, 'id'> = {
         groupId,
@@ -229,6 +285,7 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
     );
   }
 
+  const previewMap = buildPreviewMap();
   const categoryList: Category[] = ['food', 'groceries', 'transport', 'rent', 'utilities', 'entertainment', 'others'];
   const splitTypes: { key: SplitType; label: string }[] = [
     { key: 'equal', label: '=' },
@@ -314,43 +371,51 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
 
         <Card style={styles.participantsCard}>
           {group.members.map(member => {
-            const shares = parseInt(memberInputs[member.uid]?.shares || '0', 10);
+            const input = memberInputs[member.uid];
+            const shares = parseInt(input?.shares || '0', 10);
+            const isIncluded = input?.included;
+            const previewAmount = previewMap[member.uid] || 0;
 
             return (
               <View key={member.uid} style={styles.participantRow}>
                 <View style={styles.participantInfo}>
                   <Avatar name={member.name} size={32} />
-                  <Text style={styles.participantName} numberOfLines={1}>{member.name}</Text>
+                  <View style={styles.participantMeta}>
+                    <Text style={styles.participantName} numberOfLines={1}>{member.name}</Text>
+                    <Text style={[styles.previewText, !isIncluded && styles.previewTextMuted]}>
+                      Split: {formatCurrency(previewAmount)}
+                    </Text>
+                  </View>
                 </View>
 
-                <View style={styles.participantInputBox}>
-                  {splitType === 'equal' && (
-                    <TouchableOpacity
-                      onPress={() => updateMemberInput(member.uid, 'included', !memberInputs[member.uid].included)}
-                      style={[styles.checkbox, memberInputs[member.uid].included && styles.checkboxChecked]}
-                    >
-                      {memberInputs[member.uid].included && <Text style={styles.checkmark}>{'\u2713'}</Text>}
-                    </TouchableOpacity>
-                  )}
+                <View style={styles.participantControls}>
+                  <TouchableOpacity
+                    onPress={() => toggleIncluded(member.uid)}
+                    style={[styles.checkbox, isIncluded && styles.checkboxChecked]}
+                  >
+                    {isIncluded && <Text style={styles.checkmark}>{'\u2713'}</Text>}
+                  </TouchableOpacity>
 
                   {splitType === 'custom' && (
                     <TextInput
-                      style={styles.numInput}
+                      style={[styles.numInput, !isIncluded && styles.inputDisabled]}
                       keyboardType="decimal-pad"
                       placeholder="0.00"
-                      value={memberInputs[member.uid].customAmount}
+                      value={input.customAmount}
                       onChangeText={value => updateMemberInput(member.uid, 'customAmount', value)}
+                      editable={isIncluded}
                     />
                   )}
 
                   {splitType === 'percentage' && (
                     <View style={styles.inputWithSuffix}>
                       <TextInput
-                        style={[styles.numInput, { paddingRight: 24 }]}
+                        style={[styles.numInput, styles.numInputWithSuffix, !isIncluded && styles.inputDisabled]}
                         keyboardType="decimal-pad"
                         placeholder="0"
-                        value={memberInputs[member.uid].percent}
+                        value={input.percent}
                         onChangeText={value => updateMemberInput(member.uid, 'percent', value)}
+                        editable={isIncluded}
                       />
                       <Text style={styles.suffix}>%</Text>
                     </View>
@@ -359,24 +424,29 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
                   {splitType === 'shares' && (
                     <View style={styles.shareStepper}>
                       <TouchableOpacity
-                        style={[styles.shareButton, shares === 0 && styles.shareButtonDisabled]}
+                        style={[styles.shareButton, (!isIncluded || shares === 0) && styles.shareButtonDisabled]}
                         onPress={() => adjustShares(member.uid, -1)}
-                        disabled={shares === 0}
+                        disabled={!isIncluded || shares === 0}
                       >
                         <Icon
                           name="remove"
                           size={18}
-                          color={shares === 0 ? colors.textTertiary : colors.primary}
+                          color={!isIncluded || shares === 0 ? colors.textTertiary : colors.primary}
                         />
                       </TouchableOpacity>
-                      <View style={styles.shareValue}>
+                      <View style={[styles.shareValue, !isIncluded && styles.inputDisabled]}>
                         <Text style={styles.shareValueText}>{shares}</Text>
                       </View>
                       <TouchableOpacity
-                        style={styles.shareButton}
+                        style={[styles.shareButton, !isIncluded && styles.shareButtonDisabled]}
                         onPress={() => adjustShares(member.uid, 1)}
+                        disabled={!isIncluded}
                       >
-                        <Icon name="add" size={18} color={colors.primary} />
+                        <Icon
+                          name="add"
+                          size={18}
+                          color={!isIncluded ? colors.textTertiary : colors.primary}
+                        />
                       </TouchableOpacity>
                     </View>
                   )}
@@ -451,21 +521,57 @@ const styles = StyleSheet.create({
   splitOptionText: { ...typography.bodyBold, color: colors.textSecondary },
   splitOptionTextSelected: { color: colors.white },
   participantsCard: { padding: spacing.md, marginBottom: spacing.xxxl },
-  participantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
-  participantInfo: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  participantName: { ...typography.body, marginLeft: spacing.md, flex: 1 },
-  participantInputBox: { width: 132, alignItems: 'flex-end' },
-  checkbox: { width: 24, height: 24, borderRadius: 4, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  participantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  participantInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', marginRight: spacing.md },
+  participantMeta: { marginLeft: spacing.md, flex: 1 },
+  participantName: { ...typography.body },
+  previewText: { ...typography.small, color: colors.primary, marginTop: 2 },
+  previewTextMuted: { color: colors.textTertiary },
+  participantControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+    width: 180,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
   checkmark: { color: colors.white, fontWeight: 'bold' },
-  numInput: { width: '100%', height: 40, backgroundColor: colors.background, borderRadius: borderRadius.sm, textAlign: 'right', paddingHorizontal: spacing.sm, color: colors.textPrimary },
-  inputWithSuffix: { flexDirection: 'row', alignItems: 'center', width: '100%' },
+  numInput: {
+    flex: 1,
+    height: 40,
+    backgroundColor: colors.background,
+    borderRadius: borderRadius.sm,
+    textAlign: 'right',
+    paddingHorizontal: spacing.sm,
+    color: colors.textPrimary,
+  },
+  numInputWithSuffix: { paddingRight: 24 },
+  inputDisabled: {
+    opacity: 0.5,
+  },
+  inputWithSuffix: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   suffix: { position: 'absolute', right: spacing.sm, color: colors.textSecondary, fontWeight: 'bold' },
   shareStepper: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: spacing.sm,
+    flex: 1,
   },
   shareButton: {
     width: 36,
