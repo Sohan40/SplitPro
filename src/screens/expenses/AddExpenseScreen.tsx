@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import { expenseService } from '../../services/expenseService';
 import { notificationService } from '../../services/notificationService';
-import type { Group, GroupMember } from '../../models/Group';
+import type { Group } from '../../models/Group';
 import type { Expense, Category, SplitType } from '../../models/Expense';
 import type { AddExpenseScreenProps } from '../../navigation/types';
 import { calculateEqualSplit, calculateCustomSplit, calculatePercentageSplit, calculateSharesSplit } from '../../utils/splitCalculator';
@@ -18,20 +18,18 @@ import Icon from 'react-native-vector-icons/Ionicons';
 export default function AddExpenseScreen({ route, navigation }: AddExpenseScreenProps) {
   const { groupId, groupName, expenseId } = route.params;
   const { user } = useAuth();
-  
+
   const [group, setGroup] = useState<Group | null>(null);
   const [oldExpense, setOldExpense] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Form State
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<Category>('others');
   const [splitType, setSplitType] = useState<SplitType>('equal');
   const [paidByUid, setPaidByUid] = useState<string>('');
 
-  // Member State for dynamic inputs
   const [memberInputs, setMemberInputs] = useState<Record<string, {
     included: boolean;
     customAmount: string;
@@ -44,12 +42,16 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
       try {
         const groupData = await groupService.getGroup(groupId);
         setGroup(groupData);
-        
+
         if (groupData && user) {
-          let initialInputs: Record<string, any> = {};
-          
+          const initialInputs: Record<string, {
+            included: boolean;
+            customAmount: string;
+            percent: string;
+            shares: string;
+          }> = {};
+
           if (expenseId) {
-            // EDIT MODE: Load existing expense
             const exp = await expenseService.getExpense(expenseId);
             if (exp) {
               setOldExpense(exp);
@@ -58,22 +60,21 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
               setCategory(exp.category);
               setSplitType(exp.splitType);
               setPaidByUid(exp.paidBy.uid);
-              
-              groupData.members.forEach(m => {
-                const p = exp.participants.find(part => part.uid === m.uid);
-                initialInputs[m.uid] = {
-                  included: !!p,
-                  customAmount: p ? p.amount.toString() : '',
-                  percent: p ? ((p.amount / exp.amount) * 100).toFixed(2) : '0',
-                  shares: '1', // Shares info isn't stored, defaulting to 1
+
+              groupData.members.forEach(member => {
+                const participant = exp.participants.find(part => part.uid === member.uid);
+                initialInputs[member.uid] = {
+                  included: !!participant,
+                  customAmount: participant ? participant.amount.toString() : '',
+                  percent: participant ? ((participant.amount / exp.amount) * 100).toFixed(2) : '0',
+                  shares: participant ? '1' : '0',
                 };
               });
             }
           } else {
-            // NEW MODE: Initial defaults
             setPaidByUid(user.id);
-            groupData.members.forEach(m => {
-              initialInputs[m.uid] = {
+            groupData.members.forEach(member => {
+              initialInputs[member.uid] = {
                 included: true,
                 customAmount: '',
                 percent: (100 / groupData.members.length).toFixed(2),
@@ -81,6 +82,7 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
               };
             });
           }
+
           setMemberInputs(initialInputs);
         }
       } catch (error) {
@@ -90,22 +92,29 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
         setLoading(false);
       }
     };
+
     fetchData();
   }, [groupId, expenseId, user]);
 
-  const updateMemberInput = (uid: string, field: string, value: any) => {
+  const updateMemberInput = (uid: string, field: string, value: boolean | string) => {
     setMemberInputs(prev => ({
       ...prev,
       [uid]: {
         ...(prev[uid] || {}),
-        [field]: value
-      }
+        [field]: value,
+      },
     }));
+  };
+
+  const adjustShares = (uid: string, delta: number) => {
+    const currentShares = parseInt(memberInputs[uid]?.shares || '0', 10);
+    const nextShares = Math.max(0, currentShares + delta);
+    updateMemberInput(uid, 'shares', String(nextShares));
   };
 
   const handleSave = async () => {
     if (!group || !user) return;
-    
+
     const numAmount = parseFloat(amount);
     if (!description.trim() || isNaN(numAmount) || numAmount <= 0) {
       Alert.alert('Invalid Input', 'Please enter a valid description and amount.');
@@ -115,39 +124,39 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
     try {
       setSaving(true);
       let participants: any[] = [];
-      const paidByMember = group.members.find(m => m.uid === paidByUid);
-      
-      if (!paidByMember) throw new Error("Payer not found");
+      const paidByMember = group.members.find(member => member.uid === paidByUid);
+
+      if (!paidByMember) throw new Error('Payer not found');
 
       switch (splitType) {
         case 'equal': {
-          const includedMembers = group.members.filter(m => memberInputs[m.uid]?.included);
+          const includedMembers = group.members.filter(member => memberInputs[member.uid]?.included);
           participants = calculateEqualSplit(numAmount, includedMembers);
           break;
         }
         case 'custom': {
-          const customMembers = group.members.map(m => ({
-            uid: m.uid,
-            name: m.name,
-            amount: parseFloat(memberInputs[m.uid]?.customAmount) || 0,
+          const customMembers = group.members.map(member => ({
+            uid: member.uid,
+            name: member.name,
+            amount: parseFloat(memberInputs[member.uid]?.customAmount) || 0,
           }));
           participants = calculateCustomSplit(numAmount, customMembers);
           break;
         }
         case 'percentage': {
-          const pctMembers = group.members.map(m => ({
-            uid: m.uid,
-            name: m.name,
-            percent: parseFloat(memberInputs[m.uid]?.percent) || 0,
+          const pctMembers = group.members.map(member => ({
+            uid: member.uid,
+            name: member.name,
+            percent: parseFloat(memberInputs[member.uid]?.percent) || 0,
           }));
           participants = calculatePercentageSplit(numAmount, pctMembers);
           break;
         }
         case 'shares': {
-          const sharesMembers = group.members.map(m => ({
-            uid: m.uid,
-            name: m.name,
-            shares: parseFloat(memberInputs[m.uid]?.shares) || 0,
+          const sharesMembers = group.members.map(member => ({
+            uid: member.uid,
+            name: member.name,
+            shares: parseFloat(memberInputs[member.uid]?.shares) || 0,
           }));
           participants = calculateSharesSplit(numAmount, sharesMembers);
           break;
@@ -164,55 +173,45 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
         participants,
         createdBy: oldExpense ? oldExpense.createdBy : user.id,
         createdAt: oldExpense ? oldExpense.createdAt : Date.now(),
-        ...(oldExpense ? {
-          updatedBy: user.id,
-          updatedAt: Date.now()
-        } : {})
+        ...(oldExpense
+          ? {
+              updatedBy: user.id,
+              updatedAt: Date.now(),
+            }
+          : {}),
       };
 
-      // 1. RECALCULATE BALANCES
       const newBalances = { ...group.balances };
 
-      // Step A: Undo old expense impact (if editing)
       if (oldExpense) {
-        // Reverse payer: subtract old amount
         newBalances[oldExpense.paidBy.uid] = (newBalances[oldExpense.paidBy.uid] || 0) - oldExpense.amount;
-        // Reverse participants: add back their old share
-        oldExpense.participants.forEach(p => {
-          newBalances[p.uid] = (newBalances[p.uid] || 0) + p.amount;
+        oldExpense.participants.forEach(participant => {
+          newBalances[participant.uid] = (newBalances[participant.uid] || 0) + participant.amount;
         });
       }
 
-      // Step B: Apply new expense impact
-      // Add amount to new payer
       newBalances[paidByUid] = (newBalances[paidByUid] || 0) + numAmount;
-      // Subtract share from each new participant
-      participants.forEach(p => {
-        newBalances[p.uid] = (newBalances[p.uid] || 0) - p.amount;
+      participants.forEach(participant => {
+        newBalances[participant.uid] = (newBalances[participant.uid] || 0) - participant.amount;
       });
 
-      // 2. Persist to Firestore
       if (expenseId) {
         await expenseService.updateExpense(expenseId, expenseData);
       } else {
         await expenseService.addExpense(expenseData);
-        
-        // 3. Send notifications to other group members
-        if (user) {
-          const otherMemberIds = group.memberIds.filter(id => id !== user.id);
-          if (otherMemberIds.length > 0) {
-            await notificationService.createNotificationsForUsers(otherMemberIds, {
-              title: 'New Expense',
-              body: `${user.name} added "${description}" to ${groupName}`,
-              type: 'expense',
-              data: { groupId, expenseId: expenseId || '' } // We don't have the new expense ID easily here without changing the service return, but groupId is enough to link
-            });
-          }
+
+        const otherMemberIds = group.memberIds.filter(id => id !== user.id);
+        if (otherMemberIds.length > 0) {
+          await notificationService.createNotificationsForUsers(otherMemberIds, {
+            title: 'New Expense',
+            body: `${user.name} added "${description}" to ${groupName}`,
+            type: 'expense',
+            data: { groupId, expenseId: expenseId || '' },
+          });
         }
       }
-      
-      await groupService.updateGroup(groupId, { balances: newBalances });
 
+      await groupService.updateGroup(groupId, { balances: newBalances });
       navigation.goBack();
     } catch (error: any) {
       console.error(error);
@@ -223,11 +222,15 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
   };
 
   if (loading || !group || Object.keys(memberInputs).length === 0) {
-    return <View style={styles.centered}><ActivityIndicator color={colors.primary} size="large" /></View>;
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.primary} size="large" />
+      </View>
+    );
   }
 
-  const CATEGORY_LIST: Category[] = ['food', 'groceries', 'transport', 'rent', 'utilities', 'entertainment', 'others'];
-  const SPLIT_TYPES: { key: SplitType; label: string }[] = [
+  const categoryList: Category[] = ['food', 'groceries', 'transport', 'rent', 'utilities', 'entertainment', 'others'];
+  const splitTypes: { key: SplitType; label: string }[] = [
     { key: 'equal', label: '=' },
     { key: 'custom', label: '1.23' },
     { key: 'percentage', label: '%' },
@@ -237,8 +240,6 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
-        
-        {/* Description & Amount */}
         <Card style={styles.section} padding="lg">
           <TextInput
             style={styles.descInput}
@@ -248,7 +249,7 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
             onChangeText={setDescription}
           />
           <View style={styles.amountContainer}>
-            <Text style={styles.currencySymbol}>₹</Text>
+            <Text style={styles.currencySymbol}>{'\u20B9'}</Text>
             <TextInput
               style={styles.amountInput}
               placeholder="0.00"
@@ -260,12 +261,11 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
           </View>
         </Card>
 
-        {/* Category Selector */}
         <Text style={styles.sectionTitle}>Category</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-          {CATEGORY_LIST.map(cat => (
-            <TouchableOpacity 
-              key={cat} 
+          {categoryList.map(cat => (
+            <TouchableOpacity
+              key={cat}
               onPress={() => setCategory(cat)}
               style={[styles.categoryWrapper, category === cat && styles.categorySelected]}
             >
@@ -274,12 +274,11 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
           ))}
         </ScrollView>
 
-        {/* Paid By Selector */}
         <Text style={styles.sectionTitle}>Paid By</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.payerScroll}>
           {group.members.map(member => (
-            <TouchableOpacity 
-              key={member.uid} 
+            <TouchableOpacity
+              key={member.uid}
               onPress={() => setPaidByUid(member.uid)}
               style={[styles.payerCard, paidByUid === member.uid && styles.payerSelected]}
             >
@@ -298,10 +297,9 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
           ))}
         </ScrollView>
 
-        {/* Split Type */}
         <Text style={styles.sectionTitle}>Split Options</Text>
         <View style={styles.splitOptionsRow}>
-          {SPLIT_TYPES.map(type => (
+          {splitTypes.map(type => (
             <TouchableOpacity
               key={type.key}
               onPress={() => setSplitType(type.key)}
@@ -314,62 +312,79 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
           ))}
         </View>
 
-        {/* Participants Input Grid */}
         <Card style={styles.participantsCard}>
-          {group.members.map(member => (
-            <View key={member.uid} style={styles.participantRow}>
-              <View style={styles.participantInfo}>
-                <Avatar name={member.name} size={32} />
-                <Text style={styles.participantName} numberOfLines={1}>{member.name}</Text>
-              </View>
+          {group.members.map(member => {
+            const shares = parseInt(memberInputs[member.uid]?.shares || '0', 10);
 
-              <View style={styles.participantInputBox}>
-                {splitType === 'equal' && (
-                  <TouchableOpacity
-                    onPress={() => updateMemberInput(member.uid, 'included', !memberInputs[member.uid].included)}
-                    style={[styles.checkbox, memberInputs[member.uid].included && styles.checkboxChecked]}
-                  >
-                    {memberInputs[member.uid].included && <Text style={styles.checkmark}>✓</Text>}
-                  </TouchableOpacity>
-                )}
+            return (
+              <View key={member.uid} style={styles.participantRow}>
+                <View style={styles.participantInfo}>
+                  <Avatar name={member.name} size={32} />
+                  <Text style={styles.participantName} numberOfLines={1}>{member.name}</Text>
+                </View>
 
-                {splitType === 'custom' && (
-                  <TextInput
-                    style={styles.numInput}
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                    value={memberInputs[member.uid].customAmount}
-                    onChangeText={v => updateMemberInput(member.uid, 'customAmount', v)}
-                  />
-                )}
+                <View style={styles.participantInputBox}>
+                  {splitType === 'equal' && (
+                    <TouchableOpacity
+                      onPress={() => updateMemberInput(member.uid, 'included', !memberInputs[member.uid].included)}
+                      style={[styles.checkbox, memberInputs[member.uid].included && styles.checkboxChecked]}
+                    >
+                      {memberInputs[member.uid].included && <Text style={styles.checkmark}>{'\u2713'}</Text>}
+                    </TouchableOpacity>
+                  )}
 
-                {splitType === 'percentage' && (
-                  <View style={styles.inputWithSuffix}>
+                  {splitType === 'custom' && (
                     <TextInput
-                      style={[styles.numInput, { paddingRight: 24 }]}
+                      style={styles.numInput}
                       keyboardType="decimal-pad"
-                      placeholder="0"
-                      value={memberInputs[member.uid].percent}
-                      onChangeText={v => updateMemberInput(member.uid, 'percent', v)}
+                      placeholder="0.00"
+                      value={memberInputs[member.uid].customAmount}
+                      onChangeText={value => updateMemberInput(member.uid, 'customAmount', value)}
                     />
-                    <Text style={styles.suffix}>%</Text>
-                  </View>
-                )}
+                  )}
 
-                {splitType === 'shares' && (
-                  <TextInput
-                    style={styles.numInput}
-                    keyboardType="decimal-pad"
-                    placeholder="1"
-                    value={memberInputs[member.uid].shares}
-                    onChangeText={v => updateMemberInput(member.uid, 'shares', v)}
-                  />
-                )}
+                  {splitType === 'percentage' && (
+                    <View style={styles.inputWithSuffix}>
+                      <TextInput
+                        style={[styles.numInput, { paddingRight: 24 }]}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        value={memberInputs[member.uid].percent}
+                        onChangeText={value => updateMemberInput(member.uid, 'percent', value)}
+                      />
+                      <Text style={styles.suffix}>%</Text>
+                    </View>
+                  )}
+
+                  {splitType === 'shares' && (
+                    <View style={styles.shareStepper}>
+                      <TouchableOpacity
+                        style={[styles.shareButton, shares === 0 && styles.shareButtonDisabled]}
+                        onPress={() => adjustShares(member.uid, -1)}
+                        disabled={shares === 0}
+                      >
+                        <Icon
+                          name="remove"
+                          size={18}
+                          color={shares === 0 ? colors.textTertiary : colors.primary}
+                        />
+                      </TouchableOpacity>
+                      <View style={styles.shareValue}>
+                        <Text style={styles.shareValueText}>{shares}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.shareButton}
+                        onPress={() => adjustShares(member.uid, 1)}
+                      >
+                        <Icon name="add" size={18} color={colors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </Card>
-
       </ScrollView>
 
       <View style={styles.footer}>
@@ -439,12 +454,44 @@ const styles = StyleSheet.create({
   participantRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   participantInfo: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   participantName: { ...typography.body, marginLeft: spacing.md, flex: 1 },
-  participantInputBox: { width: 100, alignItems: 'flex-end' },
+  participantInputBox: { width: 132, alignItems: 'flex-end' },
   checkbox: { width: 24, height: 24, borderRadius: 4, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
   checkmark: { color: colors.white, fontWeight: 'bold' },
   numInput: { width: '100%', height: 40, backgroundColor: colors.background, borderRadius: borderRadius.sm, textAlign: 'right', paddingHorizontal: spacing.sm, color: colors.textPrimary },
   inputWithSuffix: { flexDirection: 'row', alignItems: 'center', width: '100%' },
   suffix: { position: 'absolute', right: spacing.sm, color: colors.textSecondary, fontWeight: 'bold' },
+  shareStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: spacing.sm,
+  },
+  shareButton: {
+    width: 36,
+    height: 36,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareButtonDisabled: {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.borderLight,
+  },
+  shareValue: {
+    minWidth: 40,
+    height: 36,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  shareValueText: {
+    ...typography.bodyBold,
+  },
   footer: { padding: spacing.xl, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
 });
