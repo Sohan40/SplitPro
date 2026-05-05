@@ -89,7 +89,7 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.section}>
           <Text style={styles.label}>Group Name</Text>
           <TextInput

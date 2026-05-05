@@ -108,7 +108,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.header}>
         <Avatar name={user?.name || 'User'} size={80} />
         <View style={styles.nameRow}>

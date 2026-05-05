@@ -1,5 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Alert, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  ScrollView,
+  Alert,
+  TouchableOpacity,
+  ActivityIndicator,
+  Keyboard,
+  Animated,
+} from 'react-native';
 import { colors, typography, spacing, borderRadius } from '../../components/theme';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
@@ -22,16 +33,43 @@ type MemberInputState = {
   shares: string;
 };
 
+const defaultMemberInput: MemberInputState = {
+  included: false,
+  customAmount: '',
+  percent: '0',
+  shares: '0',
+};
+
 const formatCurrency = (value: number) => `\u20B9${value.toFixed(2)}`;
 
 export default function AddExpenseScreen({ route, navigation }: AddExpenseScreenProps) {
   const { groupId, groupName, expenseId } = route.params;
   const { user } = useAuth();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const keyboardAnim = useRef(new Animated.Value(0)).current;
 
   const [group, setGroup] = useState<Group | null>(null);
   const [oldExpense, setOldExpense] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      Animated.timing(keyboardAnim, {
+        toValue: e.endCoordinates.height*0.85,
+        duration: 250,
+        useNativeDriver: false,
+      }).start();
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      Animated.timing(keyboardAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }).start();
+    });
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, [keyboardAnim]);
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -114,6 +152,8 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
     const nextShares = Math.max(0, currentShares + delta);
     updateMemberInput(uid, 'shares', String(nextShares));
   };
+
+
 
   const buildParticipants = (numAmount: number): ExpenseParticipant[] => {
     if (!group) return [];
@@ -231,9 +271,9 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
         createdAt: oldExpense ? oldExpense.createdAt : Date.now(),
         ...(oldExpense
           ? {
-              updatedBy: user.id,
-              updatedAt: Date.now(),
-            }
+            updatedBy: user.id,
+            updatedAt: Date.now(),
+          }
           : {}),
       };
 
@@ -293,10 +333,15 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
     { key: 'percentage', label: '%' },
     { key: 'shares', label: 'Shares' },
   ];
-
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+    <Animated.View style={[styles.container, { paddingBottom: keyboardAnim }]}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <Card style={styles.section} padding="lg">
           <TextInput
             style={styles.descInput}
@@ -371,13 +416,20 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
 
         <Card style={styles.participantsCard}>
           {group.members.map(member => {
-            const input = memberInputs[member.uid];
+            const input = memberInputs[member.uid] || defaultMemberInput;
             const shares = parseInt(input?.shares || '0', 10);
             const isIncluded = input?.included;
             const previewAmount = previewMap[member.uid] || 0;
 
             return (
               <View key={member.uid} style={styles.participantRow}>
+                <TouchableOpacity
+                  onPress={() => toggleIncluded(member.uid)}
+                  style={[styles.checkbox, isIncluded && styles.checkboxChecked]}
+                >
+                  {isIncluded && <Text style={styles.checkmark}>{'\u2713'}</Text>}
+                </TouchableOpacity>
+
                 <View style={styles.participantInfo}>
                   <Avatar name={member.name} size={32} />
                   <View style={styles.participantMeta}>
@@ -389,13 +441,6 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
                 </View>
 
                 <View style={styles.participantControls}>
-                  <TouchableOpacity
-                    onPress={() => toggleIncluded(member.uid)}
-                    style={[styles.checkbox, isIncluded && styles.checkboxChecked]}
-                  >
-                    {isIncluded && <Text style={styles.checkmark}>{'\u2713'}</Text>}
-                  </TouchableOpacity>
-
                   {splitType === 'custom' && (
                     <TextInput
                       style={[styles.numInput, !isIncluded && styles.inputDisabled]}
@@ -460,14 +505,15 @@ export default function AddExpenseScreen({ route, navigation }: AddExpenseScreen
       <View style={styles.footer}>
         <Button title="Save Expense" onPress={handleSave} size="lg" loading={saving} />
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content: { padding: spacing.xl, paddingBottom: spacing.xxxl },
+  scrollView: { flex: 1 },
+  content: { padding: spacing.xl, paddingBottom: spacing.xl },
   section: { marginBottom: spacing.xl },
   descInput: {
     fontSize: 18,
@@ -528,17 +574,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  participantInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', marginRight: spacing.md },
-  participantMeta: { marginLeft: spacing.md, flex: 1 },
-  participantName: { ...typography.body },
-  previewText: { ...typography.small, color: colors.primary, marginTop: 2 },
+  participantInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', marginRight: spacing.xs },
+  participantMeta: { marginLeft: spacing.sm, flex: 1 },
+  participantName: { ...typography.body, fontSize: 13 },
+  previewText: { ...typography.small, color: colors.primary, marginTop: 2, fontSize: 11 },
   previewTextMuted: { color: colors.textTertiary },
   participantControls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: spacing.sm,
-    width: 180,
+    gap: spacing.xs,
+    flexShrink: 0,
+    maxWidth: 120,
   },
   checkbox: {
     width: 24,
@@ -548,6 +595,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: spacing.sm,
   },
   checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
   checkmark: { color: colors.white, fontWeight: 'bold' },
@@ -570,12 +618,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: spacing.sm,
+    gap: spacing.xs,
     flex: 1,
   },
   shareButton: {
-    width: 36,
-    height: 36,
+    width: 28,
+    height: 28,
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.border,
@@ -588,16 +636,22 @@ const styles = StyleSheet.create({
     borderColor: colors.borderLight,
   },
   shareValue: {
-    minWidth: 40,
-    height: 36,
+    minWidth: 32,
+    height: 28,
     borderRadius: borderRadius.md,
     backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.xs,
   },
   shareValueText: {
     ...typography.bodyBold,
   },
-  footer: { padding: spacing.xl, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+  footer: {
+    padding: spacing.lg,
+    paddingBottom: spacing.sm,
+    backgroundColor: colors.background,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
 });

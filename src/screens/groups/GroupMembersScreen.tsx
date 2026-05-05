@@ -210,7 +210,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
                 <Icon name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
-            
+
             <Text style={styles.modalLabel}>Enter friend's email address</Text>
             <TextInput
               style={styles.input}
@@ -222,9 +222,9 @@ export default function GroupMembersScreen({ route, navigation }: any) {
               autoFocus
             />
 
-            <Button 
-              title="Search & Add" 
-              onPress={handleAddMember} 
+            <Button
+              title="Search & Add"
+              onPress={handleAddMember}
               loading={searching || adding}
               style={styles.modalButton}
             />
