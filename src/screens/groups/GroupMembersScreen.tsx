@@ -73,15 +73,15 @@ export default function GroupMembersScreen({ route, navigation }: any) {
                   email: foundUser.email
                 });
                 
-                // Send notification to the newly added member
+                // Fire-and-forget: triggers Cloud Function → push notification
                 if (user && group) {
-                  await notificationService.createNotification({
+                  notificationService.createNotification({
                     userId: foundUser.id,
                     title: 'Added to Group',
                     body: `${user.name} added you to ${group.name}`,
                     type: 'group_add',
                     data: { groupId }
-                  });
+                  }).catch((err: any) => console.warn('Notification creation failed:', err));
                 }
                 
                 Alert.alert('Success', `${foundUser.name} has been added.`);

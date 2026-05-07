@@ -364,7 +364,9 @@ export default function AddExpenseScreen({
 
         const otherMemberIds = group.memberIds.filter((id) => id !== user.id);
         if (otherMemberIds.length > 0) {
-          await notificationService.createNotificationsForUsers(
+          // Fire-and-forget: writing to Firestore triggers a Cloud Function
+          // that sends push notifications to all recipients' devices.
+          notificationService.createNotificationsForUsers(
             otherMemberIds,
             {
               title: 'New Expense',
@@ -372,7 +374,7 @@ export default function AddExpenseScreen({
               type: 'expense',
               data: { groupId, expenseId: expenseId || '' },
             }
-          );
+          ).catch((err: any) => console.warn('Notification creation failed:', err));
         }
       }
 
