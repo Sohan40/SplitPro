@@ -3,11 +3,16 @@ import { StatusBar, ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
+import { navigationRef } from './src/navigation/navigationRef';
 import { colors } from './src/components/theme';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { useNotificationHandler } from './src/hooks/useNotificationHandler';
 
 function Root() {
   const { user, loading } = useAuth();
+
+  // Set up push notification handlers (foreground, background tap, quit-state tap)
+  useNotificationHandler();
 
   if (loading) {
     return (
@@ -18,7 +23,7 @@ function Root() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <AppNavigator isAuthenticated={!!user} />
     </NavigationContainer>
   );
