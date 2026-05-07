@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Alert } from 'react-native';
+
 import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 import { navigateFromPush } from '../navigation/navigationRef';
 
@@ -33,8 +33,7 @@ function handleNotificationNavigation(data: Record<string, string> | undefined) 
 /**
  * Hook that handles push notification events:
  *
- * 1. **Foreground**: Shows an in-app Alert with a "View" action.
- * 2. **Background tap**: Navigates to the relevant screen when the user
+ * 1. **Background tap**: Navigates to the relevant screen when the user
  *    taps a notification while the app is in the background.
  * 3. **Quit-state tap**: Navigates when the app was opened from a killed
  *    state via a notification tap.
@@ -45,29 +44,6 @@ export function useNotificationHandler() {
   const initialNotificationHandled = useRef(false);
 
   useEffect(() => {
-    // ---------------------------------------------------------------
-    // 1. Foreground messages — show an in-app alert
-    // ---------------------------------------------------------------
-    const unsubscribeForeground = messaging().onMessage(
-      async (remoteMessage: FirebaseMessagingTypes.RemoteMessage) => {
-        const { notification, data } = remoteMessage;
-        if (!notification) return;
-
-        Alert.alert(
-          notification.title || 'SplitPro',
-          notification.body || '',
-          [
-            { text: 'Dismiss', style: 'cancel' },
-            {
-              text: 'View',
-              onPress: () => handleNotificationNavigation(data as Record<string, string>),
-            },
-          ],
-          { cancelable: true },
-        );
-      },
-    );
-
     // ---------------------------------------------------------------
     // 2. Background tap — user tapped notification while app was in bg
     // ---------------------------------------------------------------
@@ -92,7 +68,6 @@ export function useNotificationHandler() {
     }
 
     return () => {
-      unsubscribeForeground();
       unsubscribeBackground();
     };
   }, []);

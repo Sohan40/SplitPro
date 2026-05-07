@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator }
 import { colors, typography, spacing, borderRadius } from '../../components/theme';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
-import { notificationService } from '../../services/notificationService';
 import type { Group } from '../../models/Group';
 import type { HomeScreenProps } from '../../navigation/types';
 import Card from '../../components/Card';
@@ -16,14 +15,12 @@ import { calculateUserSummary } from '../../utils/balanceCalculator';
 export default function HomeScreen({ navigation }: HomeScreenProps) {
   const { user } = useAuth();
   const [groups, setGroups] = useState<Group[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
 
     let groupUnsubscribe: () => void;
-    let notifUnsubscribe: () => void;
 
     // Subscribe to real-time groups
     groupUnsubscribe = groupService.subscribeToUserGroups(user.id, (userGroups) => {
@@ -31,14 +28,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       setLoading(false);
     });
     
-    // Subscribe to unread notifications
-    notifUnsubscribe = notificationService.subscribeToUnreadNotifications(user.id, (notifications) => {
-      setUnreadCount(notifications.length);
-    });
-    
     return () => {
       if (groupUnsubscribe) groupUnsubscribe();
-      if (notifUnsubscribe) notifUnsubscribe();
     };
   }, [user, navigation]);
 
@@ -83,17 +74,6 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           <Text style={styles.greeting}>Welcome back 👋</Text>
           <Text style={styles.title}>{user?.name || 'SplitPro'}</Text>
         </View>
-        <TouchableOpacity 
-          style={styles.bellContainer}
-          onPress={() => navigation.navigate('Notifications')}
-        >
-          <Icon name="notifications-outline" size={28} color={colors.textPrimary} />
-          {unreadCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
       </View>
 
       <Card style={styles.summaryCard} variant="flat">
@@ -158,28 +138,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.xxl,
     paddingBottom: spacing.lg,
-  },
-  bellContainer: {
-    position: 'relative',
-    padding: spacing.xs,
-  },
-  badge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    backgroundColor: colors.owes, // Red color
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: colors.surface,
-  },
-  badgeText: {
-    color: colors.white,
-    fontSize: 9,
-    fontWeight: 'bold',
   },
   greeting: {
     ...typography.caption,
