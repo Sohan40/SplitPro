@@ -92,3 +92,4 @@ ios/*/GoogleService-Info.plist
 *.keystore
 !debug.keystore
 
+.aider*
