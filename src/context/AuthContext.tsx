@@ -1,6 +1,7 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { auth, db } from '../services/firebase';
 import { userService } from '../services/userService';
+import { pushNotificationService } from '../services/pushNotificationService';
 import type { User } from '../models/User';
 
 interface AuthContextType {
@@ -20,6 +21,7 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const pushUnsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let profileUnsubscribe: (() => void) | undefined;
@@ -54,8 +56,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setLoading(false);
         });
+
+        // Register device for push notifications
+        try {
+          const unsubPush = await pushNotificationService.registerDevice(firebaseUser.uid);
+          pushUnsubscribeRef.current = unsubPush;
+        } catch (error) {
+          console.error('Failed to register for push notifications:', error);
+        }
       } else {
         if (profileUnsubscribe) profileUnsubscribe();
+        if (pushUnsubscribeRef.current) {
+          pushUnsubscribeRef.current();
+          pushUnsubscribeRef.current = null;
+        }
         setUser(null);
         setLoading(false);
       }
@@ -64,11 +78,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       unsubscribe();
       if (profileUnsubscribe) profileUnsubscribe();
+      if (pushUnsubscribeRef.current) {
+        pushUnsubscribeRef.current();
+        pushUnsubscribeRef.current = null;
+      }
     };
   }, []);
 
   const logout = async () => {
     try {
+      // Unregister device before signing out so we have the user ID
+      if (user) {
+        await pushNotificationService.unregisterDevice(user.id);
+      }
+      if (pushUnsubscribeRef.current) {
+        pushUnsubscribeRef.current();
+        pushUnsubscribeRef.current = null;
+      }
       await auth.signOut();
     } catch (error) {
       console.error('Error signing out:', error);

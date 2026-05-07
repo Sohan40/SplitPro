@@ -4,4 +4,5 @@ export interface User {
   email: string;
   photoUrl: string | null;
   createdAt: number;
+  fcmTokens?: string[]; // FCM device tokens for push notifications
 }
