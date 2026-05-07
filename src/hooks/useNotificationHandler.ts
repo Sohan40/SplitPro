@@ -19,7 +19,7 @@ function handleNotificationNavigation(data: Record<string, string> | undefined) 
         params: { groupId, expenseId },
       },
     });
-  } else if (type === 'group_add' && groupId) {
+  } else if ((type === 'group_add' || type === 'general') && groupId) {
     navigateFromPush('Main', {
       screen: 'Groups',
       params: {
@@ -60,7 +60,7 @@ export function useNotificationHandler() {
       initialNotificationHandled.current = true;
       messaging()
         .getInitialNotification()
-        .then((remoteMessage) => {
+        .then((remoteMessage: FirebaseMessagingTypes.RemoteMessage | null) => {
           if (remoteMessage) {
             handleNotificationNavigation(remoteMessage.data as Record<string, string>);
           }

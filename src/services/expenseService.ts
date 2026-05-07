@@ -25,6 +25,13 @@ export const expenseService = {
   },
 
   /**
+   * Delete an expense
+   */
+  async deleteExpense(id: string): Promise<void> {
+    await db.collection(EXPENSES_COLLECTION).doc(id).delete();
+  },
+
+  /**
    * Get all expenses for a specific group
    */
   async getGroupExpenses(groupId: string): Promise<Expense[]> {

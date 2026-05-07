@@ -1,4 +1,4 @@
-export type NotificationType = 'expense' | 'group_add';
+export type NotificationType = 'expense' | 'group_add' | 'general';
 
 export interface Notification {
   id: string;

@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, Touchable
 import { colors, typography, spacing } from '../../components/theme';
 import { useAuth } from '../../context/AuthContext';
 import { expenseService } from '../../services/expenseService';
+import { groupService } from '../../services/groupService';
+import { notificationService } from '../../services/notificationService';
 import type { Expense } from '../../models/Expense';
 import type { ExpenseDetailScreenProps } from '../../navigation/types';
 import Card from '../../components/Card';
@@ -15,30 +17,103 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
   const { user } = useAuth();
   const [expense, setExpense] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Expense',
+      'Are you sure you want to delete this expense? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            if (!expense || !user) return;
+            try {
+              setDeleting(true);
+              const group = await groupService.getGroup(groupId);
+              if (!group) throw new Error('Group not found');
+
+              const newBalances = { ...group.balances };
+
+              // Revert old payer contribution
+              newBalances[expense.paidBy.uid] = (newBalances[expense.paidBy.uid] || 0) - expense.amount;
+              // Revert participants
+              expense.participants.forEach((p) => {
+                newBalances[p.uid] = (newBalances[p.uid] || 0) + p.amount;
+              });
+
+              await groupService.updateGroup(groupId, { balances: newBalances });
+              await expenseService.deleteExpense(expenseId);
+              
+              const otherMemberIds = group.memberIds.filter(id => id !== user.id);
+              if (otherMemberIds.length > 0) {
+                notificationService.createNotificationsForUsers(
+                  otherMemberIds,
+                  {
+                    title: 'Expense Deleted',
+                    body: `${user.name} deleted "${expense.description}" from ${group.name}`,
+                    type: 'general',
+                    data: { groupId },
+                  }
+                ).catch((err: any) => console.warn('Notification creation failed:', err));
+              }
+
+              navigation.goBack();
+            } catch (error) {
+              console.error('Error deleting expense:', error);
+              Alert.alert('Error', 'Failed to delete expense.');
+              setDeleting(false);
+            }
+          }
+        }
+      ]
+    );
+  };
 
   useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity 
-          onPress={() => navigation.navigate('AddExpense', { 
-            groupId, 
-            groupName: 'Edit Expense', 
-            expenseId 
-          })}
-          style={{ marginRight: spacing.md }}
-        >
-          <Icon name="create-outline" size={24} color={colors.primary} />
-        </TouchableOpacity>
-      ),
-    });
-
     const unsubscribe = expenseService.subscribeToExpense(expenseId, (data) => {
       setExpense(data);
       setLoading(false);
     });
 
     return unsubscribe;
-  }, [expenseId, groupId, navigation]);
+  }, [expenseId]);
+
+  useEffect(() => {
+    if (!expense) return;
+
+    navigation.setOptions({
+      headerRight: () => (
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {expense.createdBy === user?.id && (
+            <TouchableOpacity 
+              onPress={handleDelete}
+              style={{ marginRight: spacing.lg }}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color="#e74c3c" />
+              ) : (
+                <Icon name="trash-outline" size={24} color="#e74c3c" />
+              )}
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('AddExpense', { 
+              groupId, 
+              groupName: 'Edit Expense', 
+              expenseId 
+            })}
+            style={{ marginRight: spacing.md }}
+          >
+            <Icon name="create-outline" size={24} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
+      ),
+    });
+  }, [expense, groupId, expenseId, navigation, user, deleting]);
 
   if (loading || !expense) {
     return (
