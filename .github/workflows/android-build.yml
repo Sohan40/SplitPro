@@ -39,8 +39,6 @@ jobs:
       - name: Create assets folder
         run: mkdir -p android/app/src/main/assets
 
-
-
       - name: Grant Permission to gradlew
         run: chmod +x android/gradlew
 
@@ -48,6 +46,18 @@ jobs:
         run: |
           cd android
           ./gradlew assembleRelease -x lintVitalRelease
+
+      - name: Upload APK to Firebase App Distribution
+        run: |
+          npm install -g firebase-tools
+
+          firebase appdistribution:distribute \
+            android/app/build/outputs/apk/release/app-release.apk \
+            --app ${{ secrets.FIREBASE_APP_ID }} \
+            --groups "Flatmates" \
+            --release-notes "New GitHub Actions build"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_CI_TOKEN }}
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
