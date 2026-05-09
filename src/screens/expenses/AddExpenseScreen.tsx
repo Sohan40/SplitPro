@@ -766,7 +766,7 @@ const styles = StyleSheet.create({
   splitOptionsRow: {
     flexDirection: 'row',
     marginBottom: spacing.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceContainer,
     borderRadius: borderRadius.md,
     padding: 4,
   },
@@ -781,7 +781,7 @@ const styles = StyleSheet.create({
     ...typography.bodyBold,
     color: colors.textSecondary,
   },
-  splitOptionTextSelected: { color: colors.white },
+  splitOptionTextSelected: { color: colors.black },
   participantsCard: { padding: spacing.md, marginBottom: spacing.xxxl },
   participantRow: {
     flexDirection: 'row',
@@ -831,7 +831,7 @@ const styles = StyleSheet.create({
   numInput: {
     flex: 1,
     height: 40,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceContainerHighest,
     borderRadius: borderRadius.sm,
     textAlign: 'right',
     paddingHorizontal: spacing.sm,
@@ -859,7 +859,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceContainerHighest,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -871,7 +871,7 @@ const styles = StyleSheet.create({
     minWidth: 32,
     height: 28,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceContainerHighest,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xs,
@@ -880,7 +880,7 @@ const styles = StyleSheet.create({
   footer: {
     padding: spacing.lg,
     paddingBottom: spacing.sm,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceContainer,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },

@@ -1,15 +1,56 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  TouchableOpacity,
+  SectionList,
+} from 'react-native';
 import { colors, typography, spacing, borderRadius } from '../../components/theme';
 import { useAuth } from '../../context/AuthContext';
 import { expenseService } from '../../services/expenseService';
 import { groupService } from '../../services/groupService';
 import type { Expense } from '../../models/Expense';
 import type { ActivityScreenProps } from '../../navigation/types';
-import Card from '../../components/Card';
 import EmptyState from '../../components/EmptyState';
 import Icon from 'react-native-vector-icons/Ionicons';
 import CategoryIcon from '../../components/CategoryIcon';
+
+const CATEGORY_ICON_MAP: Record<string, string> = {
+  food: 'restaurant',
+  travel: 'airplane',
+  shopping: 'cart',
+  entertainment: 'film',
+  utilities: 'flash',
+  health: 'medkit',
+  other: 'ellipsis-horizontal-circle',
+};
+
+function groupByDate(expenses: Expense[]): { title: string; data: Expense[] }[] {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const sections: Record<string, Expense[]> = {};
+
+  for (const e of expenses) {
+    const d = new Date(e.createdAt);
+    let label: string;
+    if (d.toDateString() === today.toDateString()) {
+      label = 'Today';
+    } else if (d.toDateString() === yesterday.toDateString()) {
+      label = 'Yesterday';
+    } else {
+      label = d.toLocaleDateString('en-IN', { month: 'long', day: 'numeric' });
+    }
+    if (!sections[label]) sections[label] = [];
+    sections[label].push(e);
+  }
+
+  return Object.entries(sections).map(([title, data]) => ({ title, data }));
+}
 
 export default function ActivityScreen({ navigation }: ActivityScreenProps) {
   const { user } = useAuth();
@@ -25,7 +66,7 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
       try {
         const groups = await groupService.getUserGroups(user.id);
         const groupIds = groups.map(g => g.id);
-        
+
         expensesUnsubscribe = expenseService.subscribeToUserExpenses(groupIds, (data) => {
           setActivities(data);
           setLoading(false);
@@ -43,10 +84,12 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
     };
   }, [user]);
 
-  const renderActivity = ({ item }: { item: Expense }) => {
+  const sections = groupByDate(activities);
+
+  const renderItem = ({ item, index, section }: { item: Expense; index: number; section: { data: Expense[] } }) => {
     const iPaid = item.paidBy.uid === user?.id;
     const participantMe = item.participants.find(p => p.uid === user?.id);
-    
+
     let color = colors.textSecondary;
     let label = '';
     let amount = 0;
@@ -54,42 +97,52 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
     if (item.splitType === 'payment') {
       label = iPaid ? 'You paid' : 'You received';
       amount = item.amount;
+      color = colors.textSecondary;
     } else if (iPaid) {
       const myShare = participantMe ? participantMe.amount : 0;
       amount = item.amount - myShare;
-      label = item.updatedAt ? 'You edited' : 'You lent';
+      label = 'You lent';
       color = colors.owed;
     } else if (participantMe) {
       amount = participantMe.amount;
-      label = item.updatedAt ? 'Someone edited' : 'You borrowed';
+      label = 'You owe';
       color = colors.owes;
     }
 
+    const isLast = index === section.data.length - 1;
+
+    const iconName = CATEGORY_ICON_MAP[item.category?.toLowerCase()] || 'ellipsis-horizontal-circle';
+    const iconColor = color === colors.owes ? colors.owes : color === colors.owed ? colors.owed : colors.primary;
+
     return (
-      <TouchableOpacity 
-        onPress={() => navigation.navigate('Groups', { 
-          screen: 'ExpenseDetail', 
-          params: { groupId: item.groupId, expenseId: item.id } 
+      <TouchableOpacity
+        onPress={() => navigation.navigate('Groups', {
+          screen: 'ExpenseDetail',
+          params: { groupId: item.groupId, expenseId: item.id }
         })}
+        activeOpacity={0.7}
+        style={[styles.item, !isLast && styles.itemBorder]}
       >
-        <Card style={styles.activityCard} padding="sm">
-          <View style={styles.row}>
-            <CategoryIcon category={item.category} size={24} />
-            <View style={styles.info}>
-              <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
-              <Text style={styles.subtext}>
-                {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ₹{item.amount.toFixed(2)}
-              </Text>
-            </View>
-            <View style={styles.balance}>
-              <Text style={[styles.label, { color }]}>{label}</Text>
-              <Text style={[styles.amount, { color }]}>₹{amount.toFixed(2)}</Text>
-            </View>
-          </View>
-        </Card>
+        <View style={[styles.iconBox, { borderColor: colors.border }]}>
+          <Icon name={iconName} size={22} color={iconColor} />
+        </View>
+        <View style={styles.info}>
+          <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
+          <Text style={styles.subtext} numberOfLines={1}>
+            {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ₹{item.amount.toFixed(2)}
+          </Text>
+        </View>
+        <View style={styles.balance}>
+          <Text style={[styles.amountLabel, { color }]}>{label}</Text>
+          <Text style={[styles.amountText, { color }]}>₹{amount.toFixed(2)}</Text>
+        </View>
       </TouchableOpacity>
     );
   };
+
+  const renderSectionHeader = ({ section }: { section: { title: string } }) => (
+    <Text style={styles.sectionHeader}>{section.title}</Text>
+  );
 
   if (loading) {
     return <View style={styles.centered}><ActivityIndicator color={colors.primary} /></View>;
@@ -97,18 +150,23 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={activities}
-        keyExtractor={item => item.id}
-        renderItem={renderActivity}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <EmptyState 
-            title="No activity yet" 
-            message="Your recent expenses and payments will show up here." 
-          />
-        }
-      />
+      {sections.length === 0 ? (
+        <EmptyState
+          title="No activity yet"
+          message="Your recent expenses and payments will show up here."
+        />
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={item => item.id}
+          renderItem={renderItem}
+          renderSectionHeader={renderSectionHeader}
+          contentContainerStyle={styles.listContent}
+          stickySectionHeadersEnabled={false}
+          showsVerticalScrollIndicator={false}
+          renderSectionFooter={() => <View style={styles.sectionFooter} />}
+        />
+      )}
     </View>
   );
 }
@@ -122,21 +180,46 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.background,
   },
   listContent: {
     padding: spacing.xl,
     paddingBottom: spacing.huge,
   },
-  activityCard: {
+  sectionHeader: {
+    ...typography.label,
+    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
+    paddingLeft: spacing.xs,
+  },
+  sectionFooter: {
     marginBottom: spacing.md,
   },
-  row: {
+  // Section card — items share one rounded container
+  item: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: colors.surfaceContainer,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    // first/last radius handled by section container — keep flat here
+  },
+  itemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  iconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
   },
   info: {
     flex: 1,
-    marginLeft: spacing.md,
   },
   description: {
     ...typography.bodyBold,
@@ -149,11 +232,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginLeft: spacing.sm,
   },
-  label: {
+  amountLabel: {
     fontSize: 10,
+    fontWeight: '600',
     textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginBottom: 2,
   },
-  amount: {
-    ...typography.bodyBold,
+  amountText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

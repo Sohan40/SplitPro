@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   ViewStyle,
   TextStyle,
+  View,
 } from 'react-native';
 import { colors, borderRadius, spacing, typography } from './theme';
 
@@ -45,14 +46,14 @@ export default function Button({
       ]}
       onPress={onPress}
       disabled={isDisabled}
-      activeOpacity={0.7}>
+      activeOpacity={0.75}>
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'outline' || variant === 'ghost' ? colors.primary : colors.white}
+          color={variant === 'outline' || variant === 'ghost' ? colors.primary : colors.black}
         />
       ) : (
-        <>
+        <View style={styles.inner}>
           {icon}
           <Text
             style={[
@@ -63,7 +64,7 @@ export default function Button({
             ]}>
             {title}
           </Text>
-        </>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -71,10 +72,13 @@ export default function Button({
 
 const styles = StyleSheet.create({
   base: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: borderRadius.md,
+  },
+  inner: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
   },
   // Variants
@@ -82,12 +86,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   secondary: {
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   outline: {
     backgroundColor: 'transparent',
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: colors.border,
   },
   danger: {
     backgroundColor: colors.owes,
@@ -112,20 +118,20 @@ const styles = StyleSheet.create({
     minHeight: 54,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   // Text
   text: {
     fontWeight: '600',
   },
   text_primary: {
-    color: colors.white,
+    color: colors.black,
   },
   text_secondary: {
     color: colors.primary,
   },
   text_outline: {
-    color: colors.primary,
+    color: colors.textPrimary,
   },
   text_danger: {
     color: colors.white,
@@ -134,12 +140,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   textSize_sm: {
-    fontSize: 14,
+    fontSize: 13,
   },
   textSize_md: {
-    fontSize: 16,
+    fontSize: 15,
   },
   textSize_lg: {
-    fontSize: 18,
+    fontSize: 17,
   },
 });

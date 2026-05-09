@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  TouchableOpacity,
+  StatusBar,
+} from 'react-native';
 import { colors, typography, spacing, borderRadius, shadows } from '../../components/theme';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
@@ -7,23 +15,30 @@ import { expenseService } from '../../services/expenseService';
 import type { Group } from '../../models/Group';
 import type { Expense } from '../../models/Expense';
 import type { GroupDetailScreenProps } from '../../navigation/types';
-import Card from '../../components/Card';
-import BalanceBadge from '../../components/BalanceBadge';
 import EmptyState from '../../components/EmptyState';
 import Icon from 'react-native-vector-icons/Ionicons';
-import CategoryIcon from '../../components/CategoryIcon';
+
+const CATEGORY_ICON_MAP: Record<string, string> = {
+  food: 'restaurant',
+  travel: 'airplane',
+  shopping: 'cart',
+  entertainment: 'film',
+  utilities: 'flash',
+  health: 'medkit',
+  other: 'receipt-outline',
+};
 
 export default function GroupDetailScreen({ route, navigation }: GroupDetailScreenProps) {
   const { groupId, groupName } = route.params;
   const { user } = useAuth();
-  
+
   const [group, setGroup] = useState<Group | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     navigation.setOptions({ title: groupName });
-    
+
     setLoading(true);
     let groupUnsubscribe: () => void;
     let expensesUnsubscribe: () => void;
@@ -35,7 +50,7 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
 
       expensesUnsubscribe = expenseService.subscribeToGroupExpenses(groupId, (expensesData) => {
         setExpenses(expensesData);
-        setLoading(false); // Only set loading false once expenses load
+        setLoading(false);
       });
     } catch (error) {
       console.error('Failed to subscribe to group details:', error);
@@ -49,25 +64,18 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
   }, [groupId, groupName, navigation]);
 
   const renderExpense = ({ item }: { item: Expense }) => {
-    // Determine how much the user owes/paid for this specific expense
     const participantMe = item.participants.find(p => p.uid === user?.id);
     const iPaid = item.paidBy.uid === user?.id;
-    
+
     let descriptionText = '';
     let amountText = 0;
     let color = colors.textSecondary;
 
     if (item.splitType === 'payment') {
-      const otherPerson = iPaid ? item.participants[0].name : item.paidBy.name;
-      if (iPaid) {
-        descriptionText = `You paid ${otherPerson}`;
-        amountText = item.amount;
-        color = colors.textSecondary;
-      } else {
-        descriptionText = `${otherPerson} paid you`;
-        amountText = item.amount;
-        color = colors.textSecondary;
-      }
+      const otherPerson = iPaid ? item.participants[0]?.name : item.paidBy.name;
+      descriptionText = iPaid ? `You paid ${otherPerson}` : `${otherPerson} paid you`;
+      amountText = item.amount;
+      color = colors.textSecondary;
     } else if (iPaid) {
       const myShare = participantMe ? participantMe.amount : 0;
       amountText = item.amount - myShare;
@@ -82,74 +90,79 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
       amountText = 0;
     }
 
+    const iconName = CATEGORY_ICON_MAP[item.category?.toLowerCase()] || 'receipt-outline';
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         onPress={() => navigation.navigate('ExpenseDetail', { groupId, expenseId: item.id })}
         activeOpacity={0.7}
+        style={styles.expenseCard}
       >
-        <Card style={styles.expenseCard} padding="sm">
-          <View style={styles.expenseRow}>
-            <View style={styles.dateBox}>
-              <Text style={styles.dateMonth}>
-                {new Date(item.createdAt).toLocaleDateString('en-US', { month: 'short' })}
-              </Text>
-              <Text style={styles.dateDay}>
-                {new Date(item.createdAt).getDate()}
-              </Text>
-            </View>
-            <View style={styles.iconBox}>
-              {/* Fallback to simple icon since CategoryIcon needs to be implemented */}
-              <Icon name="receipt-outline" size={20} color={colors.primary} />
-            </View>
-            <View style={styles.expenseInfo}>
-              <Text style={styles.expenseDesc} numberOfLines={1}>{item.description}</Text>
-              <Text style={styles.expensePaidBy}>
-                {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ₹{item.amount.toFixed(2)}
-              </Text>
-            </View>
-            <View style={styles.expenseMyShare}>
-              {amountText !== 0 ? (
-                <>
-                  <Text style={[styles.shareDesc, { color }]}>{descriptionText}</Text>
-                  <Text style={[styles.shareAmount, { color }]}>
-                    ₹{amountText.toFixed(2)}
-                  </Text>
-                </>
-              ) : (
-                <Text style={styles.shareDesc}>Not involved</Text>
-              )}
-            </View>
+        <View style={styles.expenseRow}>
+          <View style={[styles.iconBox, { borderColor: colors.border }]}>
+            <Icon name={iconName} size={20} color={color === colors.textSecondary ? colors.primary : color} />
           </View>
-        </Card>
+          <View style={styles.expenseInfo}>
+            <Text style={styles.expenseDesc} numberOfLines={1}>{item.description}</Text>
+            <Text style={styles.expensePaidBy}>
+              {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ₹{item.amount.toFixed(2)}
+            </Text>
+          </View>
+          {amountText !== 0 ? (
+            <View style={styles.expenseMyShare}>
+              <Text style={[styles.shareLabel, { color }]}>{descriptionText}</Text>
+              <Text style={[styles.shareAmount, { color }]}>₹{amountText.toFixed(2)}</Text>
+            </View>
+          ) : (
+            <Text style={styles.notInvolved}>Not involved</Text>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
 
   const myBalance = user && group ? (group.balances?.[user.id] || 0) : 0;
+  const isPositive = myBalance >= 0;
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+
+      {/* Balance Hero Header */}
       <View style={styles.header}>
-        <View style={styles.balanceContainer}>
-          <Text style={styles.balanceLabel}>Your overall balance in this group</Text>
-          <BalanceBadge amount={myBalance} size="lg" />
+        <View style={styles.balanceSummary}>
+          <Text style={styles.balanceLabel}>Your balance in this group</Text>
+          <Text style={[styles.balanceAmount, { color: isPositive ? colors.owed : colors.owes }]}>
+            {isPositive ? '+' : '-'}₹{Math.abs(myBalance).toFixed(2)}
+          </Text>
+          <Text style={[styles.balanceSubLabel, { color: isPositive ? colors.owed : colors.owes }]}>
+            {myBalance === 0 ? 'All settled up 🎉' : isPositive ? 'People owe you' : 'You owe people'}
+          </Text>
         </View>
+
+        {/* Action Buttons */}
         <View style={styles.actionRow}>
-          <TouchableOpacity 
-            style={styles.actionButton} 
+          <TouchableOpacity
+            style={styles.actionBtn}
             onPress={() => navigation.navigate('SettleUp', { groupId, groupName })}
           >
-            <Icon name="cash-outline" size={24} color={colors.primary} />
+            <Icon name="cash-outline" size={20} color={colors.primary} />
             <Text style={styles.actionText}>Settle Up</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.actionButton} 
+          <View style={styles.actionDivider} />
+          <TouchableOpacity
+            style={styles.actionBtn}
             onPress={() => navigation.navigate('GroupMembers', { groupId })}
           >
-            <Icon name="people-outline" size={24} color={colors.primary} />
+            <Icon name="people-outline" size={20} color={colors.primary} />
             <Text style={styles.actionText}>Members</Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Expenses */}
+      <View style={styles.listSection}>
+        <Text style={styles.sectionTitle}>Recent Expenses</Text>
       </View>
 
       {loading ? (
@@ -160,21 +173,23 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
           keyExtractor={item => item.id}
           renderItem={renderExpense}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <EmptyState 
-              title="No expenses yet" 
+            <EmptyState
+              title="No expenses yet"
               message="Add an expense to start sharing costs."
             />
           }
         />
       )}
 
-      <TouchableOpacity 
-        style={styles.fab} 
+      {/* Glowing FAB */}
+      <TouchableOpacity
+        style={styles.fab}
         onPress={() => navigation.navigate('AddExpense', { groupId, groupName })}
         activeOpacity={0.8}
       >
-        <Icon name="receipt" size={24} color={colors.white} />
+        <Icon name="add" size={24} color={colors.black} />
         <Text style={styles.fabText}>Add Expense</Text>
       </TouchableOpacity>
     </View>
@@ -187,64 +202,85 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: colors.surface,
-    padding: spacing.xl,
+    backgroundColor: colors.surfaceContainer,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    marginBottom: spacing.sm,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.lg,
   },
-  balanceContainer: {
+  balanceSummary: {
     alignItems: 'center',
+    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.xl,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
     marginBottom: spacing.lg,
   },
   balanceLabel: {
-    ...typography.caption,
-    marginBottom: spacing.xs,
+    ...typography.label,
+    marginBottom: spacing.sm,
+  },
+  balanceAmount: {
+    fontSize: 40,
+    fontWeight: '800',
+    letterSpacing: -1.5,
+  },
+  balanceSubLabel: {
+    ...typography.captionBold,
+    marginTop: 4,
   },
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    paddingHorizontal: spacing.xl,
   },
-  actionButton: {
+  actionBtn: {
+    flex: 1,
     alignItems: 'center',
+    gap: spacing.xs,
+  },
+  actionDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: colors.border,
   },
   actionText: {
     ...typography.small,
     color: colors.primary,
-    marginTop: spacing.xs,
+    fontWeight: '600',
+  },
+  listSection: {
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  sectionTitle: {
+    ...typography.heading3,
   },
   listContent: {
-    padding: spacing.xl,
+    paddingHorizontal: spacing.xl,
     paddingBottom: spacing.huge * 2,
     flexGrow: 1,
+    paddingTop: spacing.sm,
   },
   expenseCard: {
+    backgroundColor: colors.surfaceContainer,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: spacing.md,
+    padding: spacing.lg,
   },
   expenseRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  dateBox: {
-    alignItems: 'center',
-    marginRight: spacing.sm,
-    width: 36,
-  },
-  dateMonth: {
-    fontSize: 10,
-    textTransform: 'uppercase',
-    color: colors.textSecondary,
-    fontWeight: 'bold',
-  },
-  dateDay: {
-    fontSize: 18,
-    color: colors.textPrimary,
-  },
   iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.primaryLight,
+    width: 40,
+    height: 40,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceContainerHighest,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
@@ -263,13 +299,19 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginLeft: spacing.sm,
   },
-  shareDesc: {
+  shareLabel: {
     fontSize: 10,
-    color: colors.textSecondary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 2,
   },
   shareAmount: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
+  },
+  notInvolved: {
+    ...typography.small,
+    marginLeft: spacing.sm,
   },
   fab: {
     position: 'absolute',
@@ -278,14 +320,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
-    height: 56,
-    borderRadius: 28,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: colors.primary,
+    gap: spacing.sm,
     ...shadows.lg,
   },
   fabText: {
-    ...typography.bodyBold,
-    color: colors.white,
-    marginLeft: spacing.sm,
+    color: colors.black,
+    fontWeight: '700',
+    fontSize: 15,
   },
 });
