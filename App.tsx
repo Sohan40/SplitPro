@@ -6,6 +6,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
 import { colors } from './src/components/theme';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ErrorProvider } from './src/context/ErrorContext';
 import { useNotificationHandler } from './src/hooks/useNotificationHandler';
 
 function Root() {
@@ -32,13 +33,15 @@ function Root() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar
-          barStyle="dark-content"
-          backgroundColor={colors.surface}
-        />
-        <Root />
-      </AuthProvider>
+      <ErrorProvider>
+        <AuthProvider>
+          <StatusBar
+            barStyle="dark-content"
+            backgroundColor={colors.surface}
+          />
+          <Root />
+        </AuthProvider>
+      </ErrorProvider>
     </SafeAreaProvider>
   );
 }
