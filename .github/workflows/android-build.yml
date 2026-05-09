@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'App.tsx'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'index.js'
 
 jobs:
   build:
@@ -19,8 +26,16 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      - name: Cache Metro Bundler
+        uses: actions/cache@v4
+        with:
+          path: .metro-cache
+          key: ${{ runner.os }}-metro-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-metro-
+
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -47,7 +62,7 @@ jobs:
       - name: Build Release APK
         run: |
           cd android
-          ./gradlew assembleRelease -x lintVitalRelease
+          ./gradlew assembleRelease --parallel --build-cache -x lintVitalRelease
 
       - name: Upload APK to Firebase App Distribution
         run: |
