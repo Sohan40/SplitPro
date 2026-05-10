@@ -28,6 +28,7 @@ export const colors = {
 
   // Borders
   border: '#27272a',             // outline-variant
+  borderLight: 'rgba(167,139,250,0.12)',
   borderStrong: '#52525b',       // outline
 
   // Misc

@@ -16,6 +16,7 @@ import type { Group } from '../../models/Group';
 import type { Expense } from '../../models/Expense';
 import type { GroupDetailScreenProps } from '../../navigation/types';
 import EmptyState from '../../components/EmptyState';
+import GlassCard from '../../components/GlassCard';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 const CATEGORY_ICON_MAP: Record<string, string> = {
@@ -96,27 +97,29 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
       <TouchableOpacity
         onPress={() => navigation.navigate('ExpenseDetail', { groupId, expenseId: item.id })}
         activeOpacity={0.7}
-        style={styles.expenseCard}
+        style={styles.expenseCardWrapper}
       >
-        <View style={styles.expenseRow}>
-          <View style={[styles.iconBox, { borderColor: colors.border }]}>
-            <Icon name={iconName} size={20} color={color === colors.textSecondary ? colors.primary : color} />
-          </View>
-          <View style={styles.expenseInfo}>
-            <Text style={styles.expenseDesc} numberOfLines={1}>{item.description}</Text>
-            <Text style={styles.expensePaidBy}>
-              {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ₹{item.amount.toFixed(2)}
-            </Text>
-          </View>
-          {amountText !== 0 ? (
-            <View style={styles.expenseMyShare}>
-              <Text style={[styles.shareLabel, { color }]}>{descriptionText}</Text>
-              <Text style={[styles.shareAmount, { color }]}>₹{amountText.toFixed(2)}</Text>
+        <GlassCard padding="none">
+          <View style={styles.expenseRow}>
+            <View style={[styles.iconBox, { borderColor: colors.border }]}>
+              <Icon name={iconName} size={20} color={color === colors.textSecondary ? colors.primary : color} />
             </View>
-          ) : (
-            <Text style={styles.notInvolved}>Not involved</Text>
-          )}
-        </View>
+            <View style={styles.expenseInfo}>
+              <Text style={styles.expenseDesc} numberOfLines={1}>{item.description}</Text>
+              <Text style={styles.expensePaidBy}>
+                {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ₹{item.amount.toFixed(2)}
+              </Text>
+            </View>
+            {amountText !== 0 ? (
+              <View style={styles.expenseMyShare}>
+                <Text style={[styles.shareLabel, { color }]}>{descriptionText}</Text>
+                <Text style={[styles.shareAmount, { color }]}>₹{amountText.toFixed(2)}</Text>
+              </View>
+            ) : (
+              <Text style={styles.notInvolved}>Not involved</Text>
+            )}
+          </View>
+        </GlassCard>
       </TouchableOpacity>
     );
   };
@@ -128,8 +131,8 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.background} />
 
-      {/* Balance Hero Header */}
-      <View style={styles.header}>
+      {/* Balance Hero Header - wrapped in GlassCard with Skia glow */}
+      <GlassCard padding="none" gradientDir="diagonal" style={styles.header}>
         <View style={styles.balanceSummary}>
           <Text style={styles.balanceLabel}>Your balance in this group</Text>
           <Text style={[styles.balanceAmount, { color: isPositive ? colors.owed : colors.owes }]}>
@@ -158,7 +161,7 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
             <Text style={styles.actionText}>Members</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </GlassCard>
 
       {/* Expenses */}
       <View style={styles.listSection}>
@@ -202,9 +205,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    backgroundColor: colors.surfaceContainer,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
     paddingTop: spacing.xl,
     paddingBottom: spacing.lg,
   },
@@ -263,17 +263,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingTop: spacing.sm,
   },
-  expenseCard: {
-    backgroundColor: colors.surfaceContainer,
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
+  expenseCardWrapper: {
     marginBottom: spacing.md,
-    padding: spacing.lg,
   },
   expenseRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: spacing.lg,
   },
   iconBox: {
     width: 40,

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { colors, typography, spacing, borderRadius } from '../../components/theme';
 import Button from '../../components/Button';
+import GlassCard from '../../components/GlassCard';
 import type { LoginScreenProps } from '../../navigation/types';
 import { auth } from '../../services/firebase';
 
@@ -66,7 +67,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
         <Text style={styles.logoText}>SplitPro</Text>
         <Text style={styles.subtitle}>Split expenses with friends</Text>
 
-        <View style={styles.form}>
+        <GlassCard padding="lg" gradientDir="diagonal">
           <TextInput
             style={styles.input}
             placeholder="Email"
@@ -95,7 +96,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
           <TouchableOpacity onPress={handleForgotPassword} style={styles.forgotPassword}>
             <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
           </TouchableOpacity>
-        </View>
+        </GlassCard>
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Don't have an account? </Text>
@@ -113,7 +114,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
@@ -139,9 +140,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.huge,
   },
-  form: {
-    gap: spacing.md,
-  },
   input: {
     height: 52,
     borderWidth: 1,
@@ -150,7 +148,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     fontSize: 16,
     color: colors.textPrimary,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceAlt,
+    marginBottom: spacing.md,
   },
   footer: {
     flexDirection: 'row',

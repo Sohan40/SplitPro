@@ -11,6 +11,7 @@ const CATEGORY_CONFIG: Record<Category, { icon: string; color: string; bg: strin
   utilities: { icon: 'flash', color: '#EAB308', bg: '#FEFCE8' },
   transport: { icon: 'car', color: '#2563EB', bg: '#EFF6FF' },
   entertainment: { icon: 'film', color: '#DB2777', bg: '#FDF2F8' },
+  payment: { icon: 'cash', color: colors.owed, bg: colors.owedLight },
   others: { icon: 'ellipsis-horizontal', color: '#6B7280', bg: '#F9FAFB' },
 };
 

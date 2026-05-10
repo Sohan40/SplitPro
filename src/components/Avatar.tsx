@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, Image, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
 import { colors, borderRadius } from './theme';
 
 interface AvatarProps {
@@ -44,7 +44,7 @@ export default function Avatar({ name, photoUrl, size = 40, style }: AvatarProps
             height: size,
             borderRadius: size / 2,
           },
-          style,
+          style as ImageStyle,
         ]}
       />
     );

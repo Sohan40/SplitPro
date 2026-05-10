@@ -7,7 +7,7 @@ import { groupService } from '../../services/groupService';
 import type { GroupMember } from '../../models/Group';
 import type { CreateGroupScreenProps } from '../../navigation/types';
 import Button from '../../components/Button';
-import Card from '../../components/Card';
+import GlassCard from '../../components/GlassCard';
 import Avatar from '../../components/Avatar';
 import Icon from 'react-native-vector-icons/Ionicons';
 
@@ -90,7 +90,7 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.section}>
+        <GlassCard style={styles.section} padding="lg">
           <Text style={styles.label}>Group Name</Text>
           <TextInput
             style={styles.input}
@@ -100,9 +100,9 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
             onChangeText={setGroupName}
             autoFocus
           />
-        </View>
+        </GlassCard>
 
-        <View style={styles.section}>
+        <GlassCard style={styles.section} padding="lg">
           <Text style={styles.label}>Add Members</Text>
           <View style={styles.addMemberRow}>
             <TextInput
@@ -121,12 +121,12 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
               style={{ marginLeft: spacing.md, height: 52 }}
             />
           </View>
-        </View>
+        </GlassCard>
 
         <View style={styles.section}>
           <Text style={styles.label}>Members ({members.length})</Text>
           {members.map(member => (
-            <Card key={member.uid} style={styles.memberCard} padding="sm">
+            <GlassCard key={member.uid} style={styles.memberCard} padding="sm">
               <View style={styles.memberRow}>
                 <Avatar name={member.name} size={32} />
                 <View style={styles.memberInfo}>
@@ -142,7 +142,7 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
                   />
                 )}
               </View>
-            </Card>
+            </GlassCard>
           ))}
         </View>
       </ScrollView>
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   section: {
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.xl,
   },
   label: {
     ...typography.bodyBold,
@@ -182,11 +182,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     fontSize: 16,
     color: colors.textPrimary,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceAlt,
     marginBottom: spacing.sm,
   },
   addMemberRow: {
     flexDirection: 'row',
+    alignItems: 'center',
   },
   memberCard: {
     marginBottom: spacing.sm,
@@ -207,8 +208,8 @@ const styles = StyleSheet.create({
   },
   footer: {
     padding: spacing.xl,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceContainer,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderLight,
   },
 });

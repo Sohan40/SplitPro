@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { colors, typography, spacing, borderRadius } from '../../components/theme';
 import Button from '../../components/Button';
+import GlassCard from '../../components/GlassCard';
 import type { SignUpScreenProps } from '../../navigation/types';
 import { auth } from '../../services/firebase';
 import { userService } from '../../services/userService';
@@ -76,7 +77,7 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
         <Text style={styles.logoText}>SplitPro</Text>
         <Text style={styles.subtitle}>Start splitting expenses today</Text>
 
-        <View style={styles.form}>
+        <GlassCard padding="lg" gradientDir="diagonal">
           <TextInput
             style={styles.input}
             placeholder="Full Name"
@@ -117,7 +118,7 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
             loading={loading}
             disabled={loading}
           />
-        </View>
+        </GlassCard>
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already have an account? </Text>
@@ -135,7 +136,7 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.background,
   },
   content: {
     flexGrow: 1,
@@ -162,9 +163,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.huge,
   },
-  form: {
-    gap: spacing.md,
-  },
   input: {
     height: 52,
     borderWidth: 1,
@@ -173,7 +171,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     fontSize: 16,
     color: colors.textPrimary,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceAlt,
+    marginBottom: spacing.md,
   },
   footer: {
     flexDirection: 'row',

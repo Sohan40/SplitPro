@@ -18,7 +18,7 @@ export default function GroupStack() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.textPrimary,
-        headerTitleStyle: { fontWeight: '600' },
+        headerTitleStyle: { fontWeight: '600', color: colors.textPrimary },
         headerShadowVisible: false,
         animation: 'slide_from_right',
       }}>

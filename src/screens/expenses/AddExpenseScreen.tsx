@@ -31,7 +31,7 @@ import {
   calculateSharesSplit,
 } from '../../utils/splitCalculator';
 import Button from '../../components/Button';
-import Card from '../../components/Card';
+import GlassCard from '../../components/GlassCard';
 import Avatar from '../../components/Avatar';
 import CategoryIcon from '../../components/CategoryIcon';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -432,7 +432,7 @@ export default function AddExpenseScreen({
         keyboardDismissMode="on-drag"
       >
         {/* Description & Amount */}
-        <Card style={styles.section} padding="lg">
+        <GlassCard style={styles.section} padding="lg" gradientDir="diagonal">
           <TextInput
             style={styles.descInput}
             placeholder="What was this for?"
@@ -451,7 +451,7 @@ export default function AddExpenseScreen({
               onChangeText={setAmount}
             />
           </View>
-        </Card>
+        </GlassCard>
 
         {/* Category selector */}
         <Text style={styles.sectionTitle}>Category</Text>
@@ -545,7 +545,7 @@ export default function AddExpenseScreen({
         </View>
 
         {/* Participants list */}
-        <Card style={styles.participantsCard}>
+        <GlassCard style={styles.participantsCard} padding="md">
           {group.members.map((member) => {
             const input = memberInputs[member.uid] || defaultMemberInput;
             const shares = parseInt(input?.shares || '0', 10);
@@ -675,7 +675,7 @@ export default function AddExpenseScreen({
               </View>
             );
           })}
-        </Card>
+        </GlassCard>
       </ScrollView>
 
       {/* Save button – sticks to the bottom */}
@@ -703,7 +703,7 @@ const styles = StyleSheet.create({
   descInput: {
     fontSize: 18,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderLight,
     paddingVertical: spacing.sm,
     marginBottom: spacing.md,
     color: colors.textPrimary,
@@ -731,10 +731,14 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: borderRadius.md,
     marginRight: spacing.sm,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.surfaceContainer,
   },
-  categorySelected: { borderColor: colors.primary },
+  categorySelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  },
   payerScroll: { flexDirection: 'row', marginBottom: spacing.xl },
   payerCard: {
     alignItems: 'center',
@@ -766,9 +770,11 @@ const styles = StyleSheet.create({
   splitOptionsRow: {
     flexDirection: 'row',
     marginBottom: spacing.lg,
-    backgroundColor: colors.surfaceContainer,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: borderRadius.md,
     padding: 4,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
   splitOption: {
     flex: 1,
@@ -782,13 +788,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   splitOptionTextSelected: { color: colors.black },
-  participantsCard: { padding: spacing.md, marginBottom: spacing.xxxl },
+  participantsCard: { marginBottom: spacing.xxxl },
   participantRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderLight,
   },
   participantInfo: {
     flex: 1,
@@ -819,6 +825,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 2,
     borderColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.sm,
@@ -831,7 +838,9 @@ const styles = StyleSheet.create({
   numInput: {
     flex: 1,
     height: 40,
-    backgroundColor: colors.surfaceContainerHighest,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     borderRadius: borderRadius.sm,
     textAlign: 'right',
     paddingHorizontal: spacing.sm,
@@ -859,7 +868,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surfaceContainerHighest,
+    backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -871,7 +880,9 @@ const styles = StyleSheet.create({
     minWidth: 32,
     height: 28,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.surfaceContainerHighest,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xs,
@@ -882,6 +893,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     backgroundColor: colors.surfaceContainer,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderLight,
   },
 });

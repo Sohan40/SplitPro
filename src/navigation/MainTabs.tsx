@@ -24,8 +24,9 @@ export default function MainTabs() {
       screenOptions={({ route }) => ({
         headerShown: route.name !== 'Groups',
         headerStyle: { backgroundColor: colors.surface },
+        headerTintColor: colors.textPrimary,
         headerShadowVisible: false,
-        headerTitleStyle: { fontWeight: '700', fontSize: 18 },
+        headerTitleStyle: { fontWeight: '700', fontSize: 18, color: colors.textPrimary },
         tabBarIcon: ({ focused, color, size }) => {
           const icons = TAB_ICONS[route.name];
           const iconName = focused ? icons.focused : icons.default;
@@ -36,11 +37,11 @@ export default function MainTabs() {
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabBarLabel,
       })}>
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
       <Tab.Screen
         name="Groups"
         component={GroupStack}
-        options={{ headerShown: false, unmountOnBlur: true }}
+        options={{ headerShown: false }}
         listeners={({ navigation }) => ({
           tabPress: (e) => {
             // Force reset to the root of the Groups stack when the tab is pressed

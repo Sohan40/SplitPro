@@ -15,6 +15,9 @@ import type { Group } from '../../models/Group';
 import type { HomeScreenProps } from '../../navigation/types';
 import EmptyState from '../../components/EmptyState';
 import Button from '../../components/Button';
+import GlassCard from '../../components/GlassCard';
+import GlassBalanceCard from '../../components/GlassBalanceCard';
+import GlassHeader from '../../components/GlassHeader';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { calculateUserSummary } from '../../utils/balanceCalculator';
 
@@ -25,23 +28,22 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   useEffect(() => {
     if (!user) return;
-
-    let groupUnsubscribe: () => void;
-
-    groupUnsubscribe = groupService.subscribeToUserGroups(user.id, (userGroups) => {
+    const unsubscribe = groupService.subscribeToUserGroups(user.id, (userGroups) => {
       setGroups(userGroups);
       setLoading(false);
     });
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [user]);
 
-    return () => {
-      if (groupUnsubscribe) groupUnsubscribe();
-    };
-  }, [user, navigation]);
-
-  const summary = user ? calculateUserSummary(groups, user.id) : { totalBalance: 0, youOwe: 0, youAreOwed: 0 };
+  const summary = user
+    ? calculateUserSummary(groups, user.id)
+    : { totalBalance: 0, youOwe: 0, youAreOwed: 0 };
   const totalOwed = summary.youAreOwed;
   const totalOwes = summary.youOwe;
   const netBalance = totalOwed - totalOwes;
+
+  const negativeGroupCount = groups.filter(g => user ? (g.balances?.[user.id] || 0) < 0 : false).length;
+  const positiveGroupCount = groups.filter(g => user ? (g.balances?.[user.id] || 0) > 0 : false).length;
 
   const renderGroup = ({ item }: { item: Group }) => {
     const myBalance = user ? (item.balances?.[user.id] || 0) : 0;
@@ -51,30 +53,32 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       <TouchableOpacity
         onPress={() => navigation.navigate('Groups', {
           screen: 'GroupDetail',
-          params: { groupId: item.id, groupName: item.name }
+          params: { groupId: item.id, groupName: item.name },
         })}
         activeOpacity={0.7}
-        style={styles.groupCard}
+        style={styles.groupCardWrapper}
       >
-        <View style={styles.groupCardInner}>
-          <View style={styles.groupLeft}>
-            <View style={styles.groupIconContainer}>
-              <Icon name="people" size={22} color={colors.primary} />
+        <GlassCard padding="none" style={styles.groupCardGlass}>
+          <View style={styles.groupCardInner}>
+            <View style={styles.groupLeft}>
+              <View style={styles.groupIconContainer}>
+                <Icon name="people" size={20} color={colors.primary} />
+              </View>
+              <View style={styles.groupInfo}>
+                <Text style={styles.groupName} numberOfLines={1}>{item.name}</Text>
+                <Text style={styles.groupMembers}>{item.members.length} members</Text>
+              </View>
             </View>
-            <View style={styles.groupInfo}>
-              <Text style={styles.groupName} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.groupMembers}>{item.members.length} members</Text>
+            <View style={styles.groupRight}>
+              <Text style={[styles.groupBalance, { color: isPositive ? colors.owed : colors.owes }]}>
+                {isPositive ? '+' : ''}₹{myBalance.toFixed(2)}
+              </Text>
+              <Text style={[styles.groupBalanceLabel, { color: isPositive ? colors.owed : colors.owes }]}>
+                {isPositive ? 'owed to you' : 'you owe'}
+              </Text>
             </View>
           </View>
-          <View style={styles.groupRight}>
-            <Text style={[styles.groupBalance, { color: isPositive ? colors.owed : colors.owes }]}>
-              {isPositive ? '+' : '-'}₹{Math.abs(myBalance).toFixed(2)}
-            </Text>
-            <Text style={[styles.groupBalanceLabel, { color: isPositive ? colors.owed : colors.owes }]}>
-              {isPositive ? 'you are owed' : 'you owe'}
-            </Text>
-          </View>
-        </View>
+        </GlassCard>
       </TouchableOpacity>
     );
   };
@@ -83,109 +87,74 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.background} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Welcome back 👋</Text>
-          <Text style={styles.title}>{user?.name?.split(' ')[0] || 'SplitPro'}</Text>
+      {/* Glass sticky header */}
+      <GlassHeader height={56}>
+        <View style={styles.brandLockup}>
+          <Text style={styles.headerTitle}>SplitPro</Text>
         </View>
+        <View style={{ flex: 1 }} />
         <TouchableOpacity
           style={styles.notifButton}
           onPress={() => navigation.navigate('Activity')}
         >
-          <Icon name="notifications-outline" size={22} color={colors.textSecondary} />
+          <Icon name="notifications-outline" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
-      </View>
+      </GlassHeader>
 
-      {/* Balance Bento Grid */}
-      <View style={styles.bentoGrid}>
-        {/* Total Balance — large card */}
-        <View style={styles.bentoCardLarge}>
-          <Text style={styles.bentoLabel}>Total Balance</Text>
-          <Text style={[styles.bentoAmount, { color: netBalance >= 0 ? colors.owed : colors.owes }]}>
-            {netBalance >= 0 ? '+' : '-'}₹{Math.abs(netBalance).toFixed(2)}
-          </Text>
-          <View style={styles.bentoActions}>
-            <TouchableOpacity
-              style={styles.settleBtn}
-              onPress={() => navigation.navigate('Groups', { screen: 'GroupList' })}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.settleBtnText}>Settle Up</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.addExpenseBtn}
-              onPress={() => navigation.navigate('Groups', { screen: 'GroupList' })}
-              activeOpacity={0.8}
-            >
-              <Icon name="add" size={16} color={colors.primary} />
-              <Text style={styles.addExpenseBtnText}>Add Expense</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Two small cards side by side */}
-        <View style={styles.bentoSmallRow}>
-          {/* You Owe */}
-          <View style={[styles.bentoCardSmall, styles.bentoCardSmallLeft]}>
-            <View style={styles.bentoSmallHeader}>
-              <Text style={styles.bentoLabel}>You Owe</Text>
-              <Icon name="arrow-down" size={16} color={colors.owes} />
+      <FlatList
+        data={groups}
+        keyExtractor={item => item.id}
+        renderItem={renderGroup}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        ListHeaderComponent={
+          <View style={styles.listHeader}>
+            {/* Greeting */}
+            <View style={styles.greeting}>
+              <Text style={styles.greetingSub}>Welcome back 👋</Text>
+              <Text style={styles.greetingName}>{user?.name?.split(' ')[0] || 'there'}</Text>
             </View>
-            <Text style={[styles.bentoSmallAmount, { color: colors.textPrimary }]}>
-              ₹{totalOwes.toFixed(2)}
-            </Text>
-            <Text style={styles.bentoSubLabel}>{groups.filter(g => (user ? (g.balances?.[user.id] || 0) < 0 : false)).length} groups</Text>
-          </View>
 
-          {/* You Are Owed */}
-          <View style={styles.bentoCardSmall}>
-            <View style={styles.bentoSmallHeader}>
-              <Text style={styles.bentoLabel}>Owed to You</Text>
-              <Icon name="arrow-up" size={16} color={colors.owed} />
+            {/* Skia Glass Balance Hero Card */}
+            <GlassBalanceCard
+              netBalance={netBalance}
+              totalOwes={totalOwes}
+              totalOwed={totalOwed}
+              negativeGroupCount={negativeGroupCount}
+              positiveGroupCount={positiveGroupCount}
+              onSettleUp={() => navigation.navigate('Groups', { screen: 'GroupList' })}
+              onAddExpense={() => navigation.navigate('Groups', { screen: 'GroupList' })}
+            />
+
+            {/* Section header */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Active Groups</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Groups', { screen: 'GroupList' })}>
+                <Text style={styles.seeAll}>View All</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={[styles.bentoSmallAmount, { color: colors.owed }]}>
-              ₹{totalOwed.toFixed(2)}
-            </Text>
-            <Text style={styles.bentoSubLabel}>{groups.filter(g => (user ? (g.balances?.[user.id] || 0) > 0 : false)).length} groups</Text>
+
+            {loading && (
+              <ActivityIndicator color={colors.primary} style={{ marginTop: spacing.xl }} />
+            )}
           </View>
-        </View>
-      </View>
-
-      {/* Groups List */}
-      <View style={styles.listContainer}>
-        <View style={styles.listHeader}>
-          <Text style={styles.sectionTitle}>Active Groups</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Groups', { screen: 'GroupList' })}>
-            <Text style={styles.seeAll}>View All</Text>
-          </TouchableOpacity>
-        </View>
-
-        {loading ? (
-          <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
-        ) : (
-          <FlatList
-            data={groups}
-            keyExtractor={item => item.id}
-            renderItem={renderGroup}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <EmptyState
-                title="No groups yet"
-                message="Create a group to start splitting expenses with your friends."
-                action={
-                  <Button
-                    title="Create Group"
-                    icon={<Icon name="add" size={18} color={colors.black} />}
-                    onPress={() => navigation.navigate('Groups', { screen: 'CreateGroup' })}
-                  />
-                }
-              />
-            }
-          />
-        )}
-      </View>
+        }
+        ListEmptyComponent={
+          !loading ? (
+            <EmptyState
+              title="No groups yet"
+              message="Create a group to start splitting expenses."
+              action={
+                <Button
+                  title="Create Group"
+                  icon={<Icon name="add" size={18} color={colors.black} />}
+                  onPress={() => navigation.navigate('Groups', { screen: 'CreateGroup' })}
+                />
+              }
+            />
+          ) : null
+        }
+      />
     </View>
   );
 }
@@ -195,127 +164,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  scrollContent: {
+    paddingBottom: spacing.huge,
+  },
+  listHeader: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxl,
-    paddingBottom: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
   greeting: {
+    marginBottom: spacing.xl,
+  },
+  greetingSub: {
     ...typography.caption,
     marginBottom: 2,
   },
-  title: {
+  greetingName: {
     ...typography.heading1,
   },
-  notifButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceContainerHigh,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Bento Grid
-  bentoGrid: {
-    paddingHorizontal: spacing.xl,
-    marginBottom: spacing.xl,
-    gap: spacing.md,
-  },
-  bentoCardLarge: {
-    backgroundColor: colors.surfaceContainer,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.xl,
-  },
-  bentoLabel: {
-    ...typography.label,
-    marginBottom: spacing.xs,
-  },
-  bentoAmount: {
-    fontSize: 36,
-    fontWeight: '800',
-    letterSpacing: -1,
-    marginBottom: spacing.lg,
-  },
-  bentoActions: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  settleBtn: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  settleBtnText: {
-    color: colors.black,
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  addExpenseBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-  },
-  addExpenseBtnText: {
-    color: colors.primary,
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  bentoSmallRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  bentoCardSmall: {
-    flex: 1,
-    backgroundColor: colors.surfaceContainer,
-    borderRadius: borderRadius.xl,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-  },
-  bentoCardSmallLeft: {},
-  bentoSmallHeader: {
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  bentoSmallAmount: {
-    fontSize: 20,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    marginBottom: 2,
-  },
-  bentoSubLabel: {
-    ...typography.small,
-  },
-
-  // Groups List
-  listContainer: {
-    flex: 1,
-  },
-  listHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.xl,
+    marginTop: spacing.xxl,
     marginBottom: spacing.md,
   },
   sectionTitle: {
@@ -325,23 +196,42 @@ const styles = StyleSheet.create({
     ...typography.captionBold,
     color: colors.primary,
   },
-  listContent: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.huge,
-    flexGrow: 1,
+
+  // Header
+  brandLockup: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  groupCard: {
-    backgroundColor: colors.surfaceContainer,
-    borderRadius: borderRadius.lg,
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.primary,
+    letterSpacing: -0.5,
+  },
+  notifButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(167,139,250,0.1)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(167,139,250,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Group card
+  groupCardWrapper: {
+    marginHorizontal: spacing.xl,
     marginBottom: spacing.md,
-    padding: spacing.lg,
+  },
+  groupCardGlass: {
+    // GlassCard handles border/bg via Skia
   },
   groupCardInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: spacing.lg,
   },
   groupLeft: {
     flexDirection: 'row',
@@ -349,15 +239,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   groupIconContainer: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: 'rgba(167,139,250,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   groupInfo: {
     flex: 1,
@@ -376,11 +266,11 @@ const styles = StyleSheet.create({
   groupBalance: {
     fontSize: 15,
     fontWeight: '700',
+    letterSpacing: -0.3,
   },
   groupBalanceLabel: {
     fontSize: 10,
     fontWeight: '500',
     marginTop: 1,
-    textTransform: 'lowercase',
   },
 });

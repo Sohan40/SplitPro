@@ -6,7 +6,7 @@ import { groupService } from '../../services/groupService';
 import { userService } from '../../services/userService';
 import { notificationService } from '../../services/notificationService';
 import type { Group } from '../../models/Group';
-import Card from '../../components/Card';
+import GlassCard from '../../components/GlassCard';
 import Avatar from '../../components/Avatar';
 import BalanceBadge from '../../components/BalanceBadge';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -163,7 +163,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
           const displayName = isMe ? user?.name : item.name;
           
           return (
-            <Card style={styles.memberCard} padding="md">
+            <GlassCard style={styles.memberCard} padding="md">
               <View style={styles.row}>
                 <Avatar name={displayName} size={48} />
                 <View style={styles.info}>
@@ -172,7 +172,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
                 </View>
                 <BalanceBadge amount={balance} size="sm" />
               </View>
-            </Card>
+            </GlassCard>
           );
         }}
         ListFooterComponent={
@@ -203,7 +203,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
         onRequestClose={() => setIsModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <Card style={styles.modalContent} padding="lg">
+          <GlassCard style={styles.modalContent} padding="lg" gradientDir="diagonal">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add New Member</Text>
               <TouchableOpacity onPress={() => setIsModalVisible(false)}>
@@ -215,6 +215,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
             <TextInput
               style={styles.input}
               placeholder="friend@example.com"
+              placeholderTextColor={colors.textTertiary}
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -228,7 +229,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
               loading={searching || adding}
               style={styles.modalButton}
             />
-          </Card>
+          </GlassCard>
         </View>
       </Modal>
     </View>
@@ -244,6 +245,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.background,
   },
   leaveButton: {
     flexDirection: 'row',
@@ -251,7 +253,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.md,
     marginTop: spacing.xl,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.owesLight,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.22)',
     borderRadius: borderRadius.md,
   },
   leaveText: {
@@ -295,12 +299,12 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
     padding: spacing.xl,
   },
   modalContent: {
-    backgroundColor: colors.surface,
+    width: '100%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -323,6 +327,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     marginBottom: spacing.lg,
     color: colors.textPrimary,
+    backgroundColor: colors.surfaceAlt,
   },
   modalButton: {
     marginTop: spacing.sm,

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   ActivityIndicator,
   TouchableOpacity,
   SectionList,
@@ -15,8 +14,8 @@ import { groupService } from '../../services/groupService';
 import type { Expense } from '../../models/Expense';
 import type { ActivityScreenProps } from '../../navigation/types';
 import EmptyState from '../../components/EmptyState';
+import GlassCard from '../../components/GlassCard';
 import Icon from 'react-native-vector-icons/Ionicons';
-import CategoryIcon from '../../components/CategoryIcon';
 
 const CATEGORY_ICON_MAP: Record<string, string> = {
   food: 'restaurant',
@@ -34,8 +33,9 @@ function groupByDate(expenses: Expense[]): { title: string; data: Expense[] }[] 
   yesterday.setDate(today.getDate() - 1);
 
   const sections: Record<string, Expense[]> = {};
+  const sortedExpenses = [...expenses].sort((a, b) => b.createdAt - a.createdAt);
 
-  for (const e of expenses) {
+  for (const e of sortedExpenses) {
     const d = new Date(e.createdAt);
     let label: string;
     if (d.toDateString() === today.toDateString()) {
@@ -121,21 +121,25 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
           params: { groupId: item.groupId, expenseId: item.id }
         })}
         activeOpacity={0.7}
-        style={[styles.item, !isLast && styles.itemBorder]}
+        style={styles.itemWrapper}
       >
-        <View style={[styles.iconBox, { borderColor: colors.border }]}>
-          <Icon name={iconName} size={22} color={iconColor} />
-        </View>
-        <View style={styles.info}>
-          <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
-          <Text style={styles.subtext} numberOfLines={1}>
-            {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ₹{item.amount.toFixed(2)}
-          </Text>
-        </View>
-        <View style={styles.balance}>
-          <Text style={[styles.amountLabel, { color }]}>{label}</Text>
-          <Text style={[styles.amountText, { color }]}>₹{amount.toFixed(2)}</Text>
-        </View>
+        <GlassCard padding="none">
+          <View style={[styles.item, !isLast && styles.itemBorder]}>
+            <View style={[styles.iconBox, { borderColor: colors.border }]}>
+              <Icon name={iconName} size={22} color={iconColor} />
+            </View>
+            <View style={styles.info}>
+              <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
+              <Text style={styles.subtext} numberOfLines={1}>
+                {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ₹{item.amount.toFixed(2)}
+              </Text>
+            </View>
+            <View style={styles.balance}>
+              <Text style={[styles.amountLabel, { color }]}>{label}</Text>
+              <Text style={[styles.amountText, { color }]}>₹{amount.toFixed(2)}</Text>
+            </View>
+          </View>
+        </GlassCard>
       </TouchableOpacity>
     );
   };
@@ -195,18 +199,19 @@ const styles = StyleSheet.create({
   sectionFooter: {
     marginBottom: spacing.md,
   },
-  // Section card — items share one rounded container
+  // Each item is wrapped in a GlassCard — this just handles spacing
+  itemWrapper: {
+    marginBottom: spacing.sm,
+  },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.surfaceContainer,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    // first/last radius handled by section container — keep flat here
   },
   itemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(167,139,250,0.12)',
   },
   iconBox: {
     width: 44,

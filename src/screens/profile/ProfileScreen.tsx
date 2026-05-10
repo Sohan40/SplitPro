@@ -6,8 +6,9 @@ import { groupService } from '../../services/groupService';
 import { userService } from '../../services/userService';
 import { auth } from '../../services/firebase';
 import { calculateUserSummary, hasOutstandingBalances } from '../../utils/balanceCalculator';
-import Card from '../../components/Card';
+import GlassCard from '../../components/GlassCard';
 import Avatar from '../../components/Avatar';
+import Button from '../../components/Button';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 export default function ProfileScreen() {
@@ -109,49 +110,57 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <View style={styles.header}>
-        <Avatar name={user?.name || 'User'} size={80} />
-        <View style={styles.nameRow}>
-          <Text style={styles.userName}>{user?.name}</Text>
-          <TouchableOpacity
-            style={styles.editIcon}
-            onPress={() => {
-              setNewName(user?.name || '');
-              setIsEditModalVisible(true);
-            }}
-          >
-            <Icon name="pencil" size={16} color={colors.primary} />
-          </TouchableOpacity>
+      <GlassCard padding="lg" gradientDir="diagonal" style={styles.header}>
+        <View style={styles.identityContent}>
+          <Avatar name={user?.name || 'User'} size={80} />
+          <View style={styles.nameRow}>
+            <Text style={styles.userName} numberOfLines={1}>{user?.name}</Text>
+            <TouchableOpacity
+              style={styles.editIcon}
+              onPress={() => {
+                setNewName(user?.name || '');
+                setIsEditModalVisible(true);
+              }}
+            >
+              <Icon name="pencil" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.userEmail} numberOfLines={1}>{user?.email}</Text>
         </View>
-        <Text style={styles.userEmail}>{user?.email}</Text>
-      </View>
+      </GlassCard>
 
       <View style={styles.summaryGrid}>
-        <Card style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>Total Balance</Text>
-          <Text
-            style={[
-              styles.summaryAmount,
-              { color: summary.totalBalance >= 0 ? colors.primary : colors.owes }
-            ]}
-          >
-            {'\u20B9'}{summary.totalBalance.toFixed(2)}
-          </Text>
-        </Card>
+        <GlassCard style={styles.summaryCard}>
+          <View style={styles.summaryInner}>
+            <Text style={styles.summaryLabel}>Total Balance</Text>
+            <Text
+              style={[
+                styles.summaryAmount,
+                { color: summary.totalBalance >= 0 ? colors.primary : colors.owes }
+              ]}
+            >
+              {'\u20B9'}{summary.totalBalance.toFixed(2)}
+            </Text>
+          </View>
+        </GlassCard>
       </View>
 
       <View style={styles.row}>
-        <Card style={[styles.miniCard, { marginRight: spacing.md }]}>
-          <Text style={styles.miniLabel}>You are owed</Text>
-          <Text style={[styles.miniAmount, { color: colors.owed }]}>{'\u20B9'}{summary.youAreOwed.toFixed(2)}</Text>
-        </Card>
-        <Card style={styles.miniCard}>
-          <Text style={styles.miniLabel}>You owe</Text>
-          <Text style={[styles.miniAmount, { color: colors.owes }]}>{'\u20B9'}{summary.youOwe.toFixed(2)}</Text>
-        </Card>
+        <GlassCard style={[styles.miniCard, { marginRight: spacing.md }]}>
+          <View style={styles.miniInner}>
+            <Text style={styles.miniLabel}>You are owed</Text>
+            <Text style={[styles.miniAmount, { color: colors.owed }]}>{'\u20B9'}{summary.youAreOwed.toFixed(2)}</Text>
+          </View>
+        </GlassCard>
+        <GlassCard style={styles.miniCard}>
+          <View style={styles.miniInner}>
+            <Text style={styles.miniLabel}>You owe</Text>
+            <Text style={[styles.miniAmount, { color: colors.owes }]}>{'\u20B9'}{summary.youOwe.toFixed(2)}</Text>
+          </View>
+        </GlassCard>
       </View>
 
-      <View style={styles.menu}>
+      <GlassCard padding="none" style={styles.menu}>
         <TouchableOpacity style={styles.menuItem}>
           <View style={[styles.menuIcon, { backgroundColor: colors.primaryLight }]}>
             <Icon name="settings-outline" size={20} color={colors.primary} />
@@ -161,21 +170,21 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-          <View style={[styles.menuIcon, { backgroundColor: '#FEF3C7' }]}>
-            <Icon name="log-out-outline" size={20} color="#D97706" />
+          <View style={[styles.menuIcon, { backgroundColor: 'rgba(245,158,11,0.14)' }]}>
+            <Icon name="log-out-outline" size={20} color={colors.warning} />
           </View>
-          <Text style={[styles.menuText, { color: '#D97706' }]}>Logout</Text>
+          <Text style={[styles.menuText, { color: colors.warning }]}>Logout</Text>
           <Icon name="chevron-forward" size={20} color={colors.textTertiary} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleDeleteAccount}>
-          <View style={[styles.menuIcon, { backgroundColor: '#FEE2E2' }]}>
+        <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={handleDeleteAccount}>
+          <View style={[styles.menuIcon, { backgroundColor: colors.owesLight }]}>
             <Icon name="trash-outline" size={20} color={colors.owes} />
           </View>
           <Text style={[styles.menuText, { color: colors.owes }]}>Delete Account</Text>
           <Icon name="chevron-forward" size={20} color={colors.textTertiary} />
         </TouchableOpacity>
-      </View>
+      </GlassCard>
 
       <Text style={styles.version}>SplitPro v1.0.0</Text>
 
@@ -186,7 +195,7 @@ export default function ProfileScreen() {
         onRequestClose={() => setIsEditModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <Card style={styles.modalContent} padding="lg">
+          <GlassCard style={styles.modalContent} padding="lg" gradientDir="diagonal">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Update Profile</Text>
               <TouchableOpacity onPress={() => setIsEditModalVisible(false)}>
@@ -201,18 +210,16 @@ export default function ProfileScreen() {
               value={newName}
               onChangeText={setNewName}
               autoFocus
+              placeholderTextColor={colors.textTertiary}
             />
 
-            <TouchableOpacity
-              style={[styles.saveButton, updating && styles.disabledButton]}
+            <Button
+              title={updating ? 'Updating...' : 'Save Changes'}
               onPress={handleUpdateName}
+              loading={updating}
               disabled={updating}
-            >
-              <Text style={styles.saveButtonText}>
-                {updating ? 'Updating...' : 'Save Changes'}
-              </Text>
-            </TouchableOpacity>
-          </Card>
+            />
+          </GlassCard>
         </View>
       </Modal>
     </ScrollView>
@@ -228,31 +235,49 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   header: {
+    marginBottom: spacing.xl,
+  },
+  identityContent: {
     alignItems: 'center',
-    marginVertical: spacing.xxl,
+    width: '100%',
   },
   userName: {
     ...typography.heading2,
+    textAlign: 'center',
+    maxWidth: '78%',
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
     marginTop: spacing.md,
   },
   editIcon: {
     marginLeft: spacing.xs,
-    padding: spacing.xs,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   userEmail: {
     ...typography.caption,
     marginTop: 2,
+    maxWidth: '100%',
+    textAlign: 'center',
   },
   summaryGrid: {
     marginBottom: spacing.md,
   },
   summaryCard: {
-    alignItems: 'center',
     paddingVertical: spacing.lg,
+  },
+  summaryInner: {
+    alignItems: 'center',
   },
   summaryLabel: {
     ...typography.caption,
@@ -267,6 +292,8 @@ const styles = StyleSheet.create({
   },
   miniCard: {
     flex: 1,
+  },
+  miniInner: {
     alignItems: 'center',
     paddingVertical: spacing.md,
   },
@@ -286,8 +313,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderLight,
+  },
+  menuItemLast: {
+    borderBottomWidth: 0,
   },
   menuIcon: {
     width: 36,
@@ -309,12 +340,12 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: colors.overlay,
     justifyContent: 'center',
     padding: spacing.xl,
   },
   modalContent: {
-    backgroundColor: colors.surface,
+    width: '100%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -331,25 +362,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   input: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceAlt,
     borderRadius: borderRadius.md,
     padding: spacing.md,
     ...typography.body,
     marginBottom: spacing.xl,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  saveButton: {
-    backgroundColor: colors.primary,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    ...typography.bodyBold,
-    color: colors.white,
-  },
-  disabledButton: {
-    opacity: 0.7,
   },
 });
