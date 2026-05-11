@@ -55,7 +55,7 @@ export const expenseService = {
         const sorted = expenses.sort((a, b) => b.createdAt - a.createdAt);
         callback(sorted);
       }, error => {
-        console.error("Error fetching group expenses:", error);
+        console.warn("Error fetching group expenses:", error);
       });
   },
 
@@ -76,7 +76,7 @@ export const expenseService = {
         callback(null);
       }
     }, error => {
-      console.error("Error fetching expense:", error);
+      console.warn("Error fetching expense:", error);
     });
   },
 
@@ -117,7 +117,7 @@ export const expenseService = {
         });
         callback(sorted);
       }, error => {
-        console.error("Error fetching user expenses:", error);
+        console.warn("Error fetching user expenses:", error);
       });
   },
 };

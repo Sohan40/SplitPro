@@ -39,7 +39,7 @@ export const groupService = {
         const sorted = groups.sort((a, b) => b.updatedAt - a.updatedAt);
         callback(sorted);
       }, error => {
-        console.error("Error fetching user groups:", error);
+        console.warn("Error fetching user groups:", error);
       });
   },
 
@@ -63,7 +63,7 @@ export const groupService = {
         callback(null);
       }
     }, error => {
-      console.error("Error fetching group:", error);
+      console.warn("Error fetching group:", error);
     });
   },
 

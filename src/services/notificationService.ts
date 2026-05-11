@@ -56,7 +56,7 @@ export const notificationService = {
         const sorted = notifications.sort((a, b) => b.createdAt - a.createdAt);
         callback(sorted);
       }, error => {
-        console.error("Error fetching notifications:", error);
+        console.warn("Error fetching notifications:", error);
       });
   },
 
@@ -71,7 +71,7 @@ export const notificationService = {
         const sorted = notifications.sort((a, b) => b.createdAt - a.createdAt);
         callback(sorted);
       }, error => {
-        console.error("Error fetching notifications:", error);
+        console.warn("Error fetching notifications:", error);
       });
   },
 

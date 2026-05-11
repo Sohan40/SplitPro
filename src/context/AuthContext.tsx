@@ -52,7 +52,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }, 2000);
           }
         }, error => {
-          console.error("Error fetching user profile:", error);
+          console.warn("Error fetching user profile:", error);
           setUser(null);
           setLoading(false);
         });
@@ -88,13 +88,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       // Unregister device before signing out so we have the user ID
-      if (user) {
-        await pushNotificationService.unregisterDevice(user.id);
+      const currentUserId = user?.id;
+      if (currentUserId) {
+        try {
+          await pushNotificationService.unregisterDevice(currentUserId);
+        } catch (e) {
+          console.warn('Failed to unregister device:', e);
+        }
       }
       if (pushUnsubscribeRef.current) {
         pushUnsubscribeRef.current();
         pushUnsubscribeRef.current = null;
       }
+
+      // Clear user state BEFORE signing out so screens with Firestore
+      // listeners unmount first, preventing permission-denied errors.
+      setUser(null);
+
+      // Wait for React to process the state update and unmount screens
+      // (which triggers their useEffect cleanups and unsubscribes listeners)
+      // before revoking the auth token.
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       await auth.signOut();
     } catch (error) {
       console.error('Error signing out:', error);

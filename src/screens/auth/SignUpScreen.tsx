@@ -1,14 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   Alert,
   Image,
+  TouchableOpacity,
+  Keyboard,
+  Animated,
+  StatusBar,
 } from 'react-native';
 import { colors, typography, spacing, borderRadius } from '../../components/theme';
 import Button from '../../components/Button';
@@ -16,13 +18,38 @@ import GlassCard from '../../components/GlassCard';
 import type { SignUpScreenProps } from '../../navigation/types';
 import { auth } from '../../services/firebase';
 import { userService } from '../../services/userService';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 export default function SignUpScreen({ navigation }: SignUpScreenProps) {
+  const keyboardAnim = useRef(new Animated.Value(0)).current;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [secureEntry, setSecureEntry] = useState(true);
+  const [secureConfirm, setSecureConfirm] = useState(true);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      Animated.timing(keyboardAnim, {
+        toValue: e.endCoordinates.height,
+        duration: 250,
+        useNativeDriver: false,
+      }).start();
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      Animated.timing(keyboardAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: false,
+      }).start();
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardAnim]);
 
   const handleSignUp = async () => {
     if (!name || !email || !password || !confirmPassword) {
@@ -63,64 +90,118 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled">
-        <Image 
-          source={require('../../../assets/images/logo.png')} 
-          style={styles.logoImage}
-          resizeMode="contain"
-        />
-        <Text style={styles.logoText}>SplitPro</Text>
-        <Text style={styles.subtitle}>Start splitting expenses today</Text>
+    <Animated.View style={[styles.container, { paddingBottom: keyboardAnim }]}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
 
-        <GlassCard padding="lg" gradientDir="diagonal">
-          <TextInput
-            style={styles.input}
-            placeholder="Full Name"
-            placeholderTextColor={colors.textTertiary}
-            autoCapitalize="words"
-            value={name}
-            onChangeText={setName}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={colors.textTertiary}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor={colors.textTertiary}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Confirm Password"
-            placeholderTextColor={colors.textTertiary}
-            secureTextEntry
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-          />
-          <Button 
-            title="Create Account" 
-            onPress={handleSignUp} 
-            size="lg" 
-            loading={loading}
-            disabled={loading}
-          />
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Logo & Branding */}
+        <View style={styles.brandSection}>
+          <View style={styles.logoGlow}>
+            <Image 
+              source={require('../../../assets/images/logo.png')} 
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
+          </View>
+          <Text style={styles.logoText}>SplitPro</Text>
+          <Text style={styles.subtitle}>Start splitting expenses today</Text>
+        </View>
+
+        {/* Form Card */}
+        <GlassCard padding="lg" gradientDir="diagonal" style={styles.formCard}>
+          <Text style={styles.formTitle}>Create Account</Text>
+          <Text style={styles.formSubtitle}>Join SplitPro and simplify your splits</Text>
+
+          {/* Name Input */}
+          <View style={styles.inputWrapper}>
+            <View style={styles.inputIconBox}>
+              <Icon name="person-outline" size={18} color={colors.textTertiary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Full Name"
+              placeholderTextColor={colors.textTertiary}
+              autoCapitalize="words"
+              value={name}
+              onChangeText={setName}
+            />
+          </View>
+
+          {/* Email Input */}
+          <View style={styles.inputWrapper}>
+            <View style={styles.inputIconBox}>
+              <Icon name="mail-outline" size={18} color={colors.textTertiary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Email address"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+            />
+          </View>
+
+          {/* Password Input */}
+          <View style={styles.inputWrapper}>
+            <View style={styles.inputIconBox}>
+              <Icon name="lock-closed-outline" size={18} color={colors.textTertiary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor={colors.textTertiary}
+              secureTextEntry={secureEntry}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity
+              style={styles.eyeButton}
+              onPress={() => setSecureEntry(!secureEntry)}
+            >
+              <Icon
+                name={secureEntry ? 'eye-off-outline' : 'eye-outline'}
+                size={18}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Confirm Password Input */}
+          <View style={styles.inputWrapper}>
+            <View style={styles.inputIconBox}>
+              <Icon name="shield-checkmark-outline" size={18} color={colors.textTertiary} />
+            </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              placeholderTextColor={colors.textTertiary}
+              secureTextEntry={secureConfirm}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+            <TouchableOpacity
+              style={styles.eyeButton}
+              onPress={() => setSecureConfirm(!secureConfirm)}
+            >
+              <Icon
+                name={secureConfirm ? 'eye-off-outline' : 'eye-outline'}
+                size={18}
+                color={colors.textTertiary}
+              />
+            </TouchableOpacity>
+          </View>
         </GlassCard>
 
-        <View style={styles.footer}>
+        {/* Footer nav */}
+        <View style={styles.footerNav}>
           <Text style={styles.footerText}>Already have an account? </Text>
           <Text
             style={styles.footerLink}
@@ -129,7 +210,18 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
           </Text>
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+
+      {/* Create Account button – sticks to the bottom, above keyboard */}
+      <View style={styles.footer}>
+        <Button 
+          title="Create Account" 
+          onPress={handleSignUp} 
+          size="lg" 
+          loading={loading}
+          disabled={loading}
+        />
+      </View>
+    </Animated.View>
   );
 }
 
@@ -138,43 +230,95 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.xxxl,
-    paddingVertical: spacing.huge,
+  scrollView: {
+    flex: 1,
   },
-  logoImage: {
+  content: {
+    paddingHorizontal: spacing.xxl,
+    paddingTop: spacing.xxxl,
+    paddingBottom: spacing.xl,
+  },
+  // Brand / Logo
+  brandSection: {
+    alignItems: 'center',
+    marginBottom: spacing.xxl,
+  },
+  logoGlow: {
     width: 80,
     height: 80,
-    alignSelf: 'center',
-    marginBottom: spacing.sm,
+    borderRadius: 40,
+    backgroundColor: 'rgba(167,139,250,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+  },
+  logoImage: {
+    width: 52,
+    height: 52,
   },
   logoText: {
-    ...typography.heading1,
-    textAlign: 'center',
     fontSize: 28,
     fontWeight: '800',
     color: colors.primary,
+    letterSpacing: -0.5,
   },
   subtitle: {
     ...typography.caption,
     textAlign: 'center',
-    marginTop: spacing.sm,
-    marginBottom: spacing.huge,
+    marginTop: spacing.xs,
   },
-  input: {
+  // Form
+  formCard: {
+    marginBottom: spacing.md,
+  },
+  formTitle: {
+    ...typography.heading2,
+    marginBottom: spacing.xs,
+  },
+  formSubtitle: {
+    ...typography.caption,
+    marginBottom: spacing.xxl,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     height: 52,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.lg,
-    fontSize: 16,
-    color: colors.textPrimary,
     backgroundColor: colors.surfaceAlt,
     marginBottom: spacing.md,
+    overflow: 'hidden',
   },
+  inputIconBox: {
+    width: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  input: {
+    flex: 1,
+    height: '100%',
+    fontSize: 15,
+    color: colors.textPrimary,
+    paddingRight: spacing.lg,
+  },
+  eyeButton: {
+    width: 44,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Footer
   footer: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+    backgroundColor: colors.surfaceContainer,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderLight,
+  },
+  footerNav: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: spacing.xxl,
