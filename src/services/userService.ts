@@ -3,12 +3,43 @@ import type { User } from '../models/User';
 
 const USERS_COLLECTION = 'users';
 
+type ClientWritableUserProfile = Pick<
+  User,
+  'id' | 'name' | 'email' | 'photoUrl' | 'createdAt'
+> &
+  Partial<Pick<User, 'updatedAt' | 'fcmTokens'>>;
+
+const toClientWritableUserProfile = (user: User): ClientWritableUserProfile => {
+  const profile: ClientWritableUserProfile = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    photoUrl: user.photoUrl,
+    createdAt: user.createdAt,
+  };
+
+  if (user.updatedAt !== undefined) {
+    profile.updatedAt = user.updatedAt;
+  }
+
+  if (user.fcmTokens !== undefined) {
+    profile.fcmTokens = user.fcmTokens;
+  }
+
+  return profile;
+};
+
 export const userService = {
   /**
-   * Create or update a user profile in Firestore
+   * Create or update the client-writable profile fields in Firestore.
+   * Entitlement and AI usage fields are intentionally omitted because they are
+   * server-owned and protected by Firestore Security Rules.
    */
   async saveUser(user: User): Promise<void> {
-    await db.collection(USERS_COLLECTION).doc(user.id).set(user, { merge: true });
+    await db.collection(USERS_COLLECTION).doc(user.id).set(
+      toClientWritableUserProfile(user),
+      { merge: true },
+    );
   },
 
   /**

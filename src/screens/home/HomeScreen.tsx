@@ -108,6 +108,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
       <FlatList
         data={groups}
+        extraData={user?.name}
         keyExtractor={item => item.id}
         renderItem={renderGroup}
         showsVerticalScrollIndicator={false}

@@ -11,10 +11,192 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function clientWritableUserFields() {
+      return [
+        'id',
+        'name',
+        'email',
+        'photoUrl',
+        'createdAt',
+        'updatedAt',
+        'fcmTokens'
+      ];
+    }
+
+    function userCreateFieldsAreSafe() {
+      return request.resource.data.keys().hasOnly(clientWritableUserFields());
+    }
+
+    function userUpdateFieldsAreSafe() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['name', 'photoUrl', 'updatedAt', 'fcmTokens']);
+    }
+
+    function isFirestoreDate(value) {
+      return value is number || value is timestamp;
+    }
+
+    function validUserProfile(uid) {
+      return request.resource.data.id == uid
+        && request.resource.data.name is string
+        && request.resource.data.email is string
+        && isFirestoreDate(request.resource.data.createdAt)
+        && (!('photoUrl' in request.resource.data)
+          || request.resource.data.photoUrl == null
+          || request.resource.data.photoUrl is string)
+        && (!('updatedAt' in request.resource.data)
+          || isFirestoreDate(request.resource.data.updatedAt))
+        && (!('fcmTokens' in request.resource.data)
+          || request.resource.data.fcmTokens is list);
+    }
+
+    function groupFieldsAreSafe() {
+      return request.resource.data.keys().hasOnly([
+        'id',
+        'name',
+        'createdBy',
+        'members',
+        'memberIds',
+        'balances',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function validGroup(groupId) {
+      return groupFieldsAreSafe()
+        && request.resource.data.id == groupId
+        && request.resource.data.name is string
+        && request.resource.data.createdBy is string
+        && request.resource.data.members is list
+        && request.resource.data.memberIds is list
+        && request.resource.data.balances is map
+        && request.resource.data.createdAt is number
+        && request.resource.data.updatedAt is number;
+    }
+
+    function isMemberOfGroupData(groupData) {
+      return isSignedIn()
+        && groupData.memberIds is list
+        && groupData.memberIds.hasAny([request.auth.uid]);
+    }
+
+    function isGroupMember(groupId) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/groups/$(groupId))
+        && get(/databases/$(database)/documents/groups/$(groupId))
+          .data.memberIds.hasAny([request.auth.uid]);
+    }
+
+    function isGroupMemberUid(groupId, uid) {
+      return exists(/databases/$(database)/documents/groups/$(groupId))
+        && get(/databases/$(database)/documents/groups/$(groupId))
+          .data.memberIds.hasAny([uid]);
+    }
+
+    function expenseFieldsAreSafe() {
+      return request.resource.data.keys().hasOnly([
+        'id',
+        'groupId',
+        'description',
+        'amount',
+        'category',
+        'paidBy',
+        'splitType',
+        'participants',
+        'createdBy',
+        'createdAt',
+        'updatedBy',
+        'updatedAt'
+      ]);
+    }
+
+    function validExpense() {
+      return expenseFieldsAreSafe()
+        && request.resource.data.groupId is string
+        && request.resource.data.description is string
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.category in [
+          'rent',
+          'groceries',
+          'utilities',
+          'food',
+          'transport',
+          'entertainment',
+          'others',
+          'payment'
+        ]
+        && request.resource.data.paidBy is map
+        && request.resource.data.paidBy.uid is string
+        && request.resource.data.paidBy.name is string
+        && request.resource.data.splitType in [
+          'equal',
+          'custom',
+          'percentage',
+          'shares',
+          'payment'
+        ]
+        && request.resource.data.participants is list
+        && request.resource.data.createdBy is string
+        && request.resource.data.createdAt is number
+        && (!('updatedBy' in request.resource.data)
+          || request.resource.data.updatedBy is string)
+        && (!('updatedAt' in request.resource.data)
+          || request.resource.data.updatedAt is number)
+        && isGroupMember(request.resource.data.groupId)
+        && isGroupMemberUid(
+          request.resource.data.groupId,
+          request.resource.data.paidBy.uid
+        );
+    }
+
     match /users/{uid} {
       allow read: if isSelf(uid);
-      allow create: if isSelf(uid);
-      allow update, delete: if false;
+      allow create: if isSelf(uid)
+        && userCreateFieldsAreSafe()
+        && validUserProfile(uid);
+      allow update: if isSelf(uid)
+        && userUpdateFieldsAreSafe()
+        && validUserProfile(uid);
+      allow delete: if false;
+    }
+
+    match /groups/{groupId} {
+      allow read: if isMemberOfGroupData(resource.data);
+      allow create: if isSignedIn()
+        && validGroup(groupId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.memberIds.hasAny([request.auth.uid]);
+      allow update: if isMemberOfGroupData(resource.data)
+        && validGroup(groupId);
+      allow delete: if isMemberOfGroupData(resource.data);
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isGroupMember(resource.data.groupId);
+      allow create: if isSignedIn()
+        && validExpense()
+        && request.resource.data.id == expenseId
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isGroupMember(resource.data.groupId)
+        && validExpense()
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.id == expenseId;
+      allow delete: if isGroupMember(resource.data.groupId);
+    }
+
+    match /groups/{groupId}/aiInsights/{insightId} {
+      allow read: if isGroupMember(groupId);
+      allow write: if false;
+    }
+
+    match /subscriptions/{uid} {
+      allow read, write: if false;
+    }
+
+    match /aiUsageEvents/{eventId} {
+      allow read, write: if false;
     }
 
     match /{document=**} {
