@@ -8,6 +8,10 @@ import { colors } from './src/components/theme';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ErrorProvider } from './src/context/ErrorContext';
 import { useNotificationHandler } from './src/hooks/useNotificationHandler';
+import { configureGoogleSignIn } from './src/services/googleAuthService';
+
+// Initialize Google Sign-In once at app startup
+configureGoogleSignIn();
 
 function Root() {
   const { user, loading } = useAuth();

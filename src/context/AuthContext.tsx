@@ -108,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Wait for React to process the state update and unmount screens
       // (which triggers their useEffect cleanups and unsubscribes listeners)
       // before revoking the auth token.
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 500));
 
       await auth.signOut();
     } catch (error) {

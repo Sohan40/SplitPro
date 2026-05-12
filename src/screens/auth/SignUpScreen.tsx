@@ -11,6 +11,7 @@ import {
   Keyboard,
   Animated,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { colors, typography, spacing, borderRadius } from '../../components/theme';
 import Button from '../../components/Button';
@@ -18,6 +19,7 @@ import GlassCard from '../../components/GlassCard';
 import type { SignUpScreenProps } from '../../navigation/types';
 import { auth } from '../../services/firebase';
 import { userService } from '../../services/userService';
+import { signInWithGoogle } from '../../services/googleAuthService';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 export default function SignUpScreen({ navigation }: SignUpScreenProps) {
@@ -27,6 +29,7 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [secureEntry, setSecureEntry] = useState(true);
   const [secureConfirm, setSecureConfirm] = useState(true);
 
@@ -86,6 +89,22 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
       Alert.alert('Sign Up Failed', error.message || 'An error occurred during sign up');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      // Navigation handled by AuthContext
+    } catch (error: any) {
+      if (error.code === 'SIGN_IN_CANCELLED' || error.code === '12501') {
+        return;
+      }
+      console.error(error);
+      Alert.alert('Google Sign-In Failed', error.message || 'An error occurred');
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -200,6 +219,30 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
           </View>
         </GlassCard>
 
+        {/* Divider */}
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Google Sign In */}
+        <TouchableOpacity
+          style={styles.googleButton}
+          onPress={handleGoogleSignIn}
+          disabled={googleLoading || loading}
+          activeOpacity={0.7}
+        >
+          {googleLoading ? (
+            <ActivityIndicator size="small" color={colors.textPrimary} />
+          ) : (
+            <>
+              <Icon name="logo-google" size={20} color="#ea4335" style={styles.googleIcon} />
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
         {/* Footer nav */}
         <View style={styles.footerNav}>
           <Text style={styles.footerText}>Already have an account? </Text>
@@ -309,6 +352,41 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Divider
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.border,
+  },
+  dividerText: {
+    ...typography.caption,
+    marginHorizontal: spacing.md,
+    color: colors.textTertiary,
+  },
+  // Google button
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 52,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceContainer,
+    marginBottom: spacing.md,
+  },
+  googleIcon: {
+    marginRight: spacing.sm,
+  },
+  googleButtonText: {
+    ...typography.bodyBold,
+    color: colors.textPrimary,
   },
   // Footer
   footer: {
