@@ -165,6 +165,14 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
             <Icon name="people-outline" size={20} color={colors.primary} />
             <Text style={styles.actionText}>Members</Text>
           </TouchableOpacity>
+          <View style={styles.actionDivider} />
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => navigation.navigate('SpendAnalysis', { groupId, groupName })}
+          >
+            <Icon name="stats-chart-outline" size={20} color={colors.primary} />
+            <Text style={styles.actionText}>Analysis</Text>
+          </TouchableOpacity>
         </View>
       </GlassCard>
 

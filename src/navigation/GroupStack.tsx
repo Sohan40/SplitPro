@@ -8,6 +8,7 @@ import AddExpenseScreen from '../screens/expenses/AddExpenseScreen';
 import ExpenseDetailScreen from '../screens/expenses/ExpenseDetailScreen';
 import SettleUpScreen from '../screens/groups/SettleUpScreen';
 import GroupMembersScreen from '../screens/groups/GroupMembersScreen';
+import SpendAnalysisScreen from '../screens/analytics/SpendAnalysisScreen';
 import type { GroupStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<GroupStackParamList>();
@@ -32,6 +33,7 @@ export default function GroupStack() {
       <Stack.Screen name="ExpenseDetail" component={ExpenseDetailScreen} options={{ title: 'Expense Details' }} />
       <Stack.Screen name="SettleUp" component={SettleUpScreen} options={{ title: 'Settle Up' }} />
       <Stack.Screen name="GroupMembers" component={GroupMembersScreen} options={{ title: 'Group Members' }} />
+      <Stack.Screen name="SpendAnalysis" component={SpendAnalysisScreen} options={{ title: 'Spend Analysis' }} />
     </Stack.Navigator>
   );
 }
