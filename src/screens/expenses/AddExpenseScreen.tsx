@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,8 @@ import {
   Keyboard,
   Animated,
 } from 'react-native';
-import { colors, typography, spacing, borderRadius } from '../../components/theme';
+import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import { expenseService } from '../../services/expenseService';
@@ -58,6 +59,13 @@ export default function AddExpenseScreen({
 }: AddExpenseScreenProps) {
   const { groupId, groupName, expenseId } = route.params;
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
+  const primaryForeground = theme.dark ? colors.black : colors.white;
+  const styles = useMemo(
+    () => createStyles(colors, typography, primaryForeground),
+    [colors, typography, primaryForeground],
+  );
   const scrollViewRef = useRef<ScrollView>(null);
   const keyboardAnim = useRef(new Animated.Value(0)).current;
 
@@ -694,7 +702,11 @@ export default function AddExpenseScreen({
 // ---------------------------------------------------------------------------
 // Styles – refined for a cleaner, more spaced‑out aesthetic
 // ---------------------------------------------------------------------------
-const styles = StyleSheet.create({
+const createStyles = (
+  colors: ThemeColors,
+  typography: ThemeTypography,
+  primaryForeground: string,
+) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollView: { flex: 1 },
@@ -787,7 +799,7 @@ const styles = StyleSheet.create({
     ...typography.bodyBold,
     color: colors.textSecondary,
   },
-  splitOptionTextSelected: { color: colors.black },
+  splitOptionTextSelected: { color: primaryForeground },
   participantsCard: { marginBottom: spacing.xxxl },
   participantRow: {
     flexDirection: 'row',

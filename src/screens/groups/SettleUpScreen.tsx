@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
-import { colors, typography, spacing, borderRadius } from '../../components/theme';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert } from 'react-native';
+import { spacing, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import { expenseService } from '../../services/expenseService';
@@ -15,6 +16,9 @@ import Icon from 'react-native-vector-icons/Ionicons';
 export default function SettleUpScreen({ route, navigation }: SettleUpScreenProps) {
   const { groupId } = route.params;
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   
   const [group, setGroup] = useState<Group | null>(null);
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -162,7 +166,7 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

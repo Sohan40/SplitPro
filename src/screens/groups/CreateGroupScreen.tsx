@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, ScrollView, Alert } from 'react-native';
-import { colors, typography, spacing, borderRadius } from '../../components/theme';
+import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { userService } from '../../services/userService';
 import { groupService } from '../../services/groupService';
@@ -13,6 +14,9 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps) {
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const [groupName, setGroupName] = useState('');
   const [emailInput, setEmailInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -159,7 +163,7 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

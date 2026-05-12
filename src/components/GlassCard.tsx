@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, StyleProp } from 'react-native';
-import { colors, borderRadius as themeRadius } from './theme';
+import { useTheme } from '../context/ThemeContext';
+import { borderRadius as themeRadius } from './theme';
 
 interface GlassCardProps {
   children: React.ReactNode;
@@ -18,9 +19,12 @@ export default function GlassCard({
   opacity = 0.55,
   gradientDir = 'top',
   radius = themeRadius.xl,
-  glowColor = colors.primary,
+  glowColor,
   padding = 'md',
 }: GlassCardProps) {
+  const { theme } = useTheme();
+  const { colors } = theme;
+
   const paddingValues = {
     none: 0,
     sm: 12,
@@ -28,13 +32,15 @@ export default function GlassCard({
     lg: 20,
   };
   const pad = paddingValues[padding];
+  const glow = glowColor || colors.primary;
+
   const backgroundColor = gradientDir === 'diagonal'
-    ? `rgba(30,28,40,${Math.min(opacity + 0.1, 0.9)})`
-    : `rgba(24,24,27,${opacity})`;
+    ? colors.glassDiagonal
+    : colors.glassBackground.replace(/[\d.]+\)$/u, `${opacity})`);
 
   return (
-    <View style={[styles.container, { borderRadius: radius, backgroundColor }, style]}>
-      <View pointerEvents="none" style={[styles.highlight, { backgroundColor: glowColor }]} />
+    <View style={[styles.container, { borderRadius: radius, backgroundColor, borderColor: colors.borderLight }, style]}>
+      <View pointerEvents="none" style={[styles.highlight, { backgroundColor: glow, opacity: colors.glassHighlight, borderTopColor: colors.glassBorderTop }]} />
       <View style={[styles.content, { padding: pad }]}>{children}</View>
     </View>
   );
@@ -44,7 +50,6 @@ const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.borderLight,
   },
   highlight: {
     position: 'absolute',
@@ -52,9 +57,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    opacity: 0.06,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
   },
   content: {},
 });

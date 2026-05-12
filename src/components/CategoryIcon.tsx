@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { colors, spacing, typography } from './theme';
+import { useTheme } from '../context/ThemeContext';
+import { spacing } from './theme';
 import { Category } from '../models/Expense';
 
 const CATEGORY_CONFIG: Record<Category, { icon: string; color: string; bg: string }> = {
@@ -11,7 +12,7 @@ const CATEGORY_CONFIG: Record<Category, { icon: string; color: string; bg: strin
   utilities: { icon: 'flash', color: '#EAB308', bg: '#FEFCE8' },
   transport: { icon: 'car', color: '#2563EB', bg: '#EFF6FF' },
   entertainment: { icon: 'film', color: '#DB2777', bg: '#FDF2F8' },
-  payment: { icon: 'cash', color: colors.owed, bg: colors.owedLight },
+  payment: { icon: 'cash', color: '#059669', bg: 'rgba(5,150,105,0.1)' },
   others: { icon: 'ellipsis-horizontal', color: '#6B7280', bg: '#F9FAFB' },
 };
 
@@ -26,6 +27,8 @@ export default function CategoryIcon({
   size = 36,
   showLabel = false,
 }: CategoryIconProps) {
+  const { theme } = useTheme();
+  const { colors } = theme;
   const config = CATEGORY_CONFIG[category] || CATEGORY_CONFIG.others;
   const iconSize = size * 0.5;
 
@@ -44,7 +47,7 @@ export default function CategoryIcon({
         <Icon name={config.icon} size={iconSize} color={config.color} />
       </View>
       {showLabel && (
-        <Text style={styles.label}>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>
           {category.charAt(0).toUpperCase() + category.slice(1)}
         </Text>
       )}
@@ -62,7 +65,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   label: {
-    ...typography.small,
-    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '400',
+    lineHeight: 14,
   },
 });

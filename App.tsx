@@ -4,8 +4,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
-import { colors } from './src/components/theme';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { ErrorProvider } from './src/context/ErrorContext';
 import { useNotificationHandler } from './src/hooks/useNotificationHandler';
 import { configureGoogleSignIn } from './src/services/googleAuthService';
@@ -15,37 +15,42 @@ configureGoogleSignIn();
 
 function Root() {
   const { user, loading } = useAuth();
+  const { theme, isDark } = useTheme();
 
   // Set up push notification handlers (foreground, background tap, quit-state tap)
   useNotificationHandler();
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface }}>
-        <ActivityIndicator size="large" color={colors.primary} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.surface }}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
     );
   }
 
   return (
-    <NavigationContainer ref={navigationRef}>
-      <AppNavigator isAuthenticated={!!user} />
-    </NavigationContainer>
+    <>
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.colors.surface}
+      />
+      <NavigationContainer ref={navigationRef}>
+        <AppNavigator isAuthenticated={!!user} />
+      </NavigationContainer>
+    </>
   );
 }
 
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ErrorProvider>
-        <AuthProvider>
-          <StatusBar
-            barStyle="dark-content"
-            backgroundColor={colors.surface}
-          />
-          <Root />
-        </AuthProvider>
-      </ErrorProvider>
+      <ThemeProvider>
+        <ErrorProvider>
+          <AuthProvider>
+            <Root />
+          </AuthProvider>
+        </ErrorProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
-import { colors, typography, spacing, borderRadius } from '../../components/theme';
+import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import type { Group } from '../../models/Group';
@@ -23,6 +24,10 @@ import { calculateUserSummary } from '../../utils/balanceCalculator';
 
 export default function HomeScreen({ navigation }: HomeScreenProps) {
   const { user } = useAuth();
+  const { theme, isDark } = useTheme();
+  const { colors, typography } = theme;
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+  const primaryForeground = isDark ? colors.black : colors.white;
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -85,7 +90,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       {/* Glass sticky header */}
       <GlassHeader height={56}>
@@ -147,7 +152,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
               action={
                 <Button
                   title="Create Group"
-                  icon={<Icon name="add" size={18} color={colors.black} />}
+                  icon={<Icon name="add" size={18} color={primaryForeground} />}
                   onPress={() => navigation.navigate('Groups', { screen: 'CreateGroup' })}
                 />
               }
@@ -159,7 +164,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

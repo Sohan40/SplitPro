@@ -1,35 +1,38 @@
-// SplitPro Design System — Obsidian Dark Theme
-// Adapted from the Premium Glassy UI Redesign (Stitch project 16273210988204002203)
+// SplitPro Design System — Dual-Theme Support
+// Dark: Obsidian  |  Light: Ivory
+// Adapted from the Premium Glassy UI Redesign
 
-export const colors = {
+// ─── Color Palettes ────────────────────────────────────────
+
+export const darkColors = {
   // Core backgrounds (darkest → lightest layering)
-  background: '#09090b',         // Page background
-  surface: '#0c0c0f',            // Base surface
-  surfaceContainer: '#121215',   // Card / container background
-  surfaceContainerHigh: '#18181b', // Elevated card
-  surfaceContainerHighest: '#1e1e22', // Highest elevation
-  surfaceAlt: '#0f0f12',         // Low-elevation surface
+  background: '#09090b',
+  surface: '#0c0c0f',
+  surfaceContainer: '#121215',
+  surfaceContainerHigh: '#18181b',
+  surfaceContainerHighest: '#1e1e22',
+  surfaceAlt: '#0f0f12',
 
   // Brand — Violet / Purple
-  primary: '#a78bfa',            // Primary accent (violet)
-  primaryDark: '#7c3aed',        // Primary container / press state
-  primaryLight: 'rgba(167,139,250,0.15)', // Tinted background
+  primary: '#a78bfa',
+  primaryDark: '#7c3aed',
+  primaryLight: 'rgba(167,139,250,0.15)',
 
   // Financial indicators
-  owed: '#34d399',               // Emerald — you are owed
+  owed: '#34d399',
   owedLight: 'rgba(52,211,153,0.15)',
-  owes: '#ef4444',               // Red — you owe
+  owes: '#ef4444',
   owesLight: 'rgba(239,68,68,0.15)',
 
   // Text
-  textPrimary: '#fafafa',        // on-surface
-  textSecondary: '#a1a1aa',      // on-surface-variant
-  textTertiary: '#71717a',       // secondary
+  textPrimary: '#fafafa',
+  textSecondary: '#a1a1aa',
+  textTertiary: '#71717a',
 
   // Borders
-  border: '#27272a',             // outline-variant
+  border: '#27272a',
   borderLight: 'rgba(167,139,250,0.12)',
-  borderStrong: '#52525b',       // outline
+  borderStrong: '#52525b',
 
   // Misc
   divider: '#27272a',
@@ -38,81 +41,142 @@ export const colors = {
   overlay: 'rgba(0, 0, 0, 0.7)',
   white: '#fafafa',
   black: '#09090b',
+
+  // Glass effect
+  glassBackground: 'rgba(24,24,27,0.55)',
+  glassDiagonal: 'rgba(30,28,40,0.65)',
+  glassHighlight: 0.06,
+  glassBorderTop: 'rgba(255,255,255,0.08)',
 };
 
-export const typography = {
-  heading1: {
-    fontSize: 30,
-    fontWeight: '800' as const,
-    lineHeight: 36,
-    letterSpacing: -0.5,
-    color: colors.textPrimary,
-  },
-  heading2: {
-    fontSize: 22,
-    fontWeight: '700' as const,
-    lineHeight: 28,
-    letterSpacing: -0.3,
-    color: colors.textPrimary,
-  },
-  heading3: {
-    fontSize: 17,
-    fontWeight: '600' as const,
-    lineHeight: 24,
-    color: colors.textPrimary,
-  },
-  body: {
-    fontSize: 15,
-    fontWeight: '400' as const,
-    lineHeight: 22,
-    color: colors.textPrimary,
-  },
-  bodyBold: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    lineHeight: 22,
-    color: colors.textPrimary,
-  },
-  caption: {
-    fontSize: 13,
-    fontWeight: '400' as const,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  captionBold: {
-    fontSize: 13,
-    fontWeight: '600' as const,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  small: {
-    fontSize: 11,
-    fontWeight: '400' as const,
-    lineHeight: 14,
-    color: colors.textTertiary,
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '600' as const,
-    lineHeight: 14,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase' as const,
-    color: colors.textSecondary,
-  },
-  amount: {
-    fontSize: 20,
-    fontWeight: '700' as const,
-    lineHeight: 26,
-    color: colors.textPrimary,
-  },
-  amountLarge: {
-    fontSize: 36,
-    fontWeight: '800' as const,
-    lineHeight: 44,
-    letterSpacing: -1,
-    color: colors.textPrimary,
-  },
+export const lightColors = {
+  // Core backgrounds
+  background: '#f5f5f9',
+  surface: '#ffffff',
+  surfaceContainer: '#f0f0f5',
+  surfaceContainerHigh: '#e8e8ee',
+  surfaceContainerHighest: '#dcdce4',
+  surfaceAlt: '#f4f4f9',
+
+  // Brand — deeper violet for contrast on light
+  primary: '#7c3aed',
+  primaryDark: '#6d28d9',
+  primaryLight: 'rgba(124,58,237,0.08)',
+
+  // Financial indicators (same for recognition)
+  owed: '#059669',
+  owedLight: 'rgba(5,150,105,0.1)',
+  owes: '#dc2626',
+  owesLight: 'rgba(220,38,38,0.1)',
+
+  // Text
+  textPrimary: '#1a1a2e',
+  textSecondary: '#64748b',
+  textTertiary: '#94a3b8',
+
+  // Borders
+  border: '#e2e2ea',
+  borderLight: 'rgba(124,58,237,0.08)',
+  borderStrong: '#c8c8d2',
+
+  // Misc
+  divider: '#e2e2ea',
+  warning: '#d97706',
+  info: '#2563eb',
+  overlay: 'rgba(0, 0, 0, 0.35)',
+  white: '#ffffff',
+  black: '#09090b',
+
+  // Glass effect (frosted glass on white — subtle shadows)
+  glassBackground: 'rgba(255,255,255,0.75)',
+  glassDiagonal: 'rgba(248,247,255,0.85)',
+  glassHighlight: 0.03,
+  glassBorderTop: 'rgba(124,58,237,0.06)',
 };
+
+export type ThemeColors = typeof darkColors;
+
+// ─── Typography (theme-aware factory) ──────────────────────
+
+export function createTypography(c: ThemeColors) {
+  return {
+    heading1: {
+      fontSize: 30,
+      fontWeight: '800' as const,
+      lineHeight: 36,
+      letterSpacing: -0.5,
+      color: c.textPrimary,
+    },
+    heading2: {
+      fontSize: 22,
+      fontWeight: '700' as const,
+      lineHeight: 28,
+      letterSpacing: -0.3,
+      color: c.textPrimary,
+    },
+    heading3: {
+      fontSize: 17,
+      fontWeight: '600' as const,
+      lineHeight: 24,
+      color: c.textPrimary,
+    },
+    body: {
+      fontSize: 15,
+      fontWeight: '400' as const,
+      lineHeight: 22,
+      color: c.textPrimary,
+    },
+    bodyBold: {
+      fontSize: 15,
+      fontWeight: '600' as const,
+      lineHeight: 22,
+      color: c.textPrimary,
+    },
+    caption: {
+      fontSize: 13,
+      fontWeight: '400' as const,
+      lineHeight: 18,
+      color: c.textSecondary,
+    },
+    captionBold: {
+      fontSize: 13,
+      fontWeight: '600' as const,
+      lineHeight: 18,
+      color: c.textSecondary,
+    },
+    small: {
+      fontSize: 11,
+      fontWeight: '400' as const,
+      lineHeight: 14,
+      color: c.textTertiary,
+    },
+    label: {
+      fontSize: 11,
+      fontWeight: '600' as const,
+      lineHeight: 14,
+      letterSpacing: 0.5,
+      textTransform: 'uppercase' as const,
+      color: c.textSecondary,
+    },
+    amount: {
+      fontSize: 20,
+      fontWeight: '700' as const,
+      lineHeight: 26,
+      color: c.textPrimary,
+    },
+    amountLarge: {
+      fontSize: 36,
+      fontWeight: '800' as const,
+      lineHeight: 44,
+      letterSpacing: -1,
+      color: c.textPrimary,
+    },
+  };
+}
+
+export type ThemeTypography = ReturnType<typeof createTypography>;
+
+// ─── Static tokens (spacing, borderRadius, shadows — theme-independent) ──
 
 export const spacing = {
   xs: 4,
@@ -135,7 +199,7 @@ export const borderRadius = {
 
 export const shadows = {
   sm: {
-    shadowColor: colors.primary,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0,
     shadowRadius: 0,
@@ -149,10 +213,38 @@ export const shadows = {
     elevation: 3,
   },
   lg: {
-    shadowColor: colors.primary,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 6,
   },
 };
+
+// ─── Full Theme Object ─────────────────────────────────────
+
+export interface AppTheme {
+  dark: boolean;
+  colors: ThemeColors;
+  typography: ThemeTypography;
+  spacing: typeof spacing;
+  borderRadius: typeof borderRadius;
+  shadows: typeof shadows;
+}
+
+export function getTheme(mode: 'light' | 'dark'): AppTheme {
+  const c = mode === 'dark' ? darkColors : lightColors;
+  return {
+    dark: mode === 'dark',
+    colors: c,
+    typography: createTypography(c),
+    spacing,
+    borderRadius,
+    shadows,
+  };
+}
+
+// ─── Backward-compatible static exports (dark theme defaults) ──
+// These will be removed once all files are migrated to useTheme()
+export const colors = darkColors;
+export const typography = createTypography(darkColors);

@@ -2,11 +2,11 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { colors } from '../components/theme';
+import { useTheme } from '../context/ThemeContext';
 import HomeScreen from '../screens/home/HomeScreen';
 import GroupStack from './GroupStack';
 import ActivityScreen from '../screens/activity/ActivityScreen';
-import ProfileScreen from '../screens/profile/ProfileScreen';
+import ProfileStack from './ProfileStack';
 import type { MainTabParamList } from './types';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -19,6 +19,9 @@ const TAB_ICONS: Record<string, { focused: string; default: string }> = {
 };
 
 export default function MainTabs() {
+  const { theme } = useTheme();
+  const { colors } = theme;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -34,7 +37,14 @@ export default function MainTabs() {
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.borderLight,
+          borderTopWidth: 1,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 4,
+        },
         tabBarLabelStyle: styles.tabBarLabel,
       })}>
       <Tab.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
@@ -43,27 +53,28 @@ export default function MainTabs() {
         component={GroupStack}
         options={{ headerShown: false }}
         listeners={({ navigation }) => ({
-          tabPress: (e) => {
+          tabPress: () => {
             // Force reset to the root of the Groups stack when the tab is pressed
             navigation.navigate('Groups', { screen: 'GroupList' });
           },
         })}
       />
       <Tab.Screen name="Activity" component={ActivityScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileStack}
+        options={{ headerShown: false, popToTopOnBlur: true }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate('Profile', { screen: 'ProfileMain' });
+          },
+        })}
+      />
     </Tab.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: colors.surface,
-    borderTopColor: colors.borderLight,
-    borderTopWidth: 1,
-    height: 60,
-    paddingBottom: 8,
-    paddingTop: 4,
-  },
   tabBarLabel: {
     fontSize: 11,
     fontWeight: '500',

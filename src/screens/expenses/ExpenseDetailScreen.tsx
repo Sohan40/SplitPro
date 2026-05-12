@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
-import { colors, typography, spacing } from '../../components/theme';
+import { spacing, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { expenseService } from '../../services/expenseService';
 import { groupService } from '../../services/groupService';
@@ -15,11 +16,14 @@ import Icon from 'react-native-vector-icons/Ionicons';
 export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetailScreenProps) {
   const { expenseId, groupId } = route.params;
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const [expense, setExpense] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
 
-  const handleDelete = () => {
+  const handleDelete = useCallback(() => {
     Alert.alert(
       'Delete Expense',
       'Are you sure you want to delete this expense? This action cannot be undone.',
@@ -70,7 +74,7 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
         }
       ]
     );
-  };
+  }, [expense, expenseId, groupId, navigation, user]);
 
   useEffect(() => {
     const unsubscribe = expenseService.subscribeToExpense(expenseId, (data) => {
@@ -113,7 +117,7 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
         </View>
       ),
     });
-  }, [expense, groupId, expenseId, navigation, user, deleting]);
+  }, [colors.primary, deleting, expense, expenseId, groupId, handleDelete, navigation, user?.id]);
 
   if (loading || !expense) {
     return (
@@ -166,7 +170,7 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

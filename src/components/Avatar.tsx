@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
-import { colors, borderRadius } from './theme';
 
 interface AvatarProps {
   name: string;
@@ -73,7 +72,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   text: {
-    color: colors.white,
+    color: '#fafafa',
     fontWeight: '600',
   },
 });

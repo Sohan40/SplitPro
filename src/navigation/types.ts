@@ -19,12 +19,18 @@ export type GroupStackParamList = {
   SettleUp: { groupId: string; groupName: string };
 };
 
+// Profile Stack (nested in Profile tab)
+export type ProfileStackParamList = {
+  ProfileMain: undefined;
+  Settings: undefined;
+};
+
 // Main Tab Navigator
 export type MainTabParamList = {
   Home: undefined;
   Groups: NavigatorScreenParams<GroupStackParamList>;
   Activity: undefined;
-  Profile: undefined;
+  Profile: NavigatorScreenParams<ProfileStackParamList>;
 };
 
 // Root Navigator
@@ -54,7 +60,5 @@ export type ActivityScreenProps = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 
-export type ProfileScreenProps = CompositeScreenProps<
-  BottomTabScreenProps<MainTabParamList, 'Profile'>,
-  NativeStackScreenProps<RootStackParamList>
->;
+export type ProfileScreenProps = NativeStackScreenProps<ProfileStackParamList, 'ProfileMain'>;
+export type SettingsScreenProps = NativeStackScreenProps<ProfileStackParamList, 'Settings'>;

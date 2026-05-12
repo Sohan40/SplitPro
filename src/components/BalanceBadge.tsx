@@ -1,6 +1,6 @@
 import React from 'react';
-import { Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { colors, typography } from './theme';
+import { Text, StyleSheet, TextStyle } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 interface BalanceBadgeProps {
   amount: number;
@@ -22,6 +22,8 @@ export default function BalanceBadge({
   showSign = true,
   size = 'md',
 }: BalanceBadgeProps) {
+  const { theme } = useTheme();
+  const { colors } = theme;
   const isPositive = amount > 0;
   const isZero = amount === 0;
 

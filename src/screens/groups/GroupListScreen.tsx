@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { colors, typography, spacing, borderRadius, shadows } from '../../components/theme';
+import { useTheme } from '../../context/ThemeContext';
+import { spacing, borderRadius, shadows } from '../../components/theme';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import type { Group } from '../../models/Group';
@@ -12,6 +13,8 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 export default function GroupListScreen({ navigation }: GroupListScreenProps) {
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const { colors } = theme;
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,12 +50,12 @@ export default function GroupListScreen({ navigation }: GroupListScreenProps) {
       >
         <Card style={styles.groupCard} padding="sm">
           <View style={styles.groupHeader}>
-            <View style={styles.groupIconContainer}>
+            <View style={[styles.groupIconContainer, { backgroundColor: colors.primaryLight }]}>
               <Icon name="people" size={24} color={colors.primary} />
             </View>
             <View style={styles.groupInfo}>
-              <Text style={styles.groupName}>{item.name}</Text>
-              <Text style={styles.groupMembers}>{item.members.length} members</Text>
+              <Text style={[styles.groupName, { color: colors.textPrimary }]}>{item.name}</Text>
+              <Text style={[styles.groupMembers, { color: colors.textTertiary }]}>{item.members.length} members</Text>
             </View>
             <View style={styles.groupBalance}>
               <BalanceBadge amount={myBalance} size="sm" />
@@ -64,7 +67,7 @@ export default function GroupListScreen({ navigation }: GroupListScreenProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {loading ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
       ) : (
@@ -83,11 +86,11 @@ export default function GroupListScreen({ navigation }: GroupListScreenProps) {
       )}
 
       <TouchableOpacity 
-        style={styles.fab} 
+        style={[styles.fab, { backgroundColor: colors.primary }]} 
         onPress={() => navigation.navigate('CreateGroup')}
         activeOpacity={0.8}
       >
-        <Icon name="add" size={28} color={colors.white} />
+        <Icon name="add" size={28} color="#fff" />
       </TouchableOpacity>
     </View>
   );
@@ -96,11 +99,10 @@ export default function GroupListScreen({ navigation }: GroupListScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   listContent: {
     padding: spacing.xl,
-    paddingBottom: spacing.huge * 2, // Extra padding for FAB
+    paddingBottom: spacing.huge * 2,
     flexGrow: 1,
   },
   groupCard: {
@@ -114,7 +116,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: borderRadius.md,
-    backgroundColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
@@ -123,10 +124,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   groupName: {
-    ...typography.bodyBold,
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 22,
   },
   groupMembers: {
-    ...typography.small,
+    fontSize: 11,
+    fontWeight: '400',
+    lineHeight: 14,
     marginTop: 2,
   },
   groupBalance: {
@@ -139,7 +144,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.lg,

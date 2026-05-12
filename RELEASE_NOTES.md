@@ -1,5 +1,23 @@
 # SplitPro Release Notes
 
+## v1.0.5 (Build 6) - May 12, 2026
+
+### Light Theme Support
+- Added Light, Dark, and System appearance settings
+- Migrated shared components, navigation, and major screens to theme-aware colors
+- Persisted theme preference across app launches
+
+### Navigation Polish
+- Added a dedicated Settings screen under Profile
+- Reset Profile tab back to the profile root when leaving Settings
+- Removed the Profile/Settings transition animation for an instant switch
+
+### UI Refinements
+- Improved primary button text/icon contrast in light mode
+- Updated StatusBar styling for light and dark appearances
+
+---
+
 ## v1.0.4 (Build 5) — May 11, 2026
 
 ### ✨ Auth Screen Redesign

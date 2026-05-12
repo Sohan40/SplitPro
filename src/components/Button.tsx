@@ -8,7 +8,8 @@ import {
   TextStyle,
   View,
 } from 'react-native';
-import { colors, borderRadius, spacing, typography } from './theme';
+import { useTheme } from '../context/ThemeContext';
+import { borderRadius, spacing } from './theme';
 
 interface ButtonProps {
   title: string;
@@ -33,14 +34,36 @@ export default function Button({
   textStyle,
   icon,
 }: ButtonProps) {
+  const { theme } = useTheme();
+  const { colors } = theme;
   const isDisabled = disabled || loading;
+  const primaryForeground = theme.dark ? colors.black : colors.white;
+
+  const variantStyles: Record<string, ViewStyle> = {
+    primary: { backgroundColor: colors.primary },
+    secondary: { backgroundColor: colors.surfaceContainerHigh, borderWidth: 1, borderColor: colors.border },
+    outline: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.border },
+    danger: { backgroundColor: colors.owes },
+    ghost: { backgroundColor: 'transparent' },
+  };
+
+  const textColorMap: Record<string, string> = {
+    primary: primaryForeground,
+    secondary: colors.primary,
+    outline: colors.textPrimary,
+    danger: colors.white,
+    ghost: colors.primary,
+  };
+
+  const sizeStyles = { sm: styles.size_sm, md: styles.size_md, lg: styles.size_lg };
+  const textSizeStyles = { sm: styles.textSize_sm, md: styles.textSize_md, lg: styles.textSize_lg };
 
   return (
     <TouchableOpacity
       style={[
         styles.base,
-        styles[variant],
-        styles[`size_${size}`],
+        variantStyles[variant],
+        sizeStyles[size],
         isDisabled && styles.disabled,
         style,
       ]}
@@ -50,7 +73,7 @@ export default function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'outline' || variant === 'ghost' ? colors.primary : colors.black}
+          color={variant === 'outline' || variant === 'ghost' ? colors.primary : primaryForeground}
         />
       ) : (
         <View style={styles.inner}>
@@ -58,8 +81,8 @@ export default function Button({
           <Text
             style={[
               styles.text,
-              styles[`text_${variant}`],
-              styles[`textSize_${size}`],
+              { color: textColorMap[variant] },
+              textSizeStyles[size],
               textStyle,
             ]}>
             {title}
@@ -81,27 +104,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  // Variants
-  primary: {
-    backgroundColor: colors.primary,
-  },
-  secondary: {
-    backgroundColor: colors.surfaceContainerHigh,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  danger: {
-    backgroundColor: colors.owes,
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-  },
-  // Sizes
   size_sm: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
@@ -120,24 +122,8 @@ const styles = StyleSheet.create({
   disabled: {
     opacity: 0.4,
   },
-  // Text
   text: {
     fontWeight: '600',
-  },
-  text_primary: {
-    color: colors.black,
-  },
-  text_secondary: {
-    color: colors.primary,
-  },
-  text_outline: {
-    color: colors.textPrimary,
-  },
-  text_danger: {
-    color: colors.white,
-  },
-  text_ghost: {
-    color: colors.primary,
   },
   textSize_sm: {
     fontSize: 13,

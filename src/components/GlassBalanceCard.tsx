@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { colors, spacing, borderRadius } from './theme';
+import { useTheme } from '../context/ThemeContext';
+import { spacing, borderRadius } from './theme';
 
 interface GlassBalanceCardProps {
   netBalance: number;
@@ -21,30 +22,48 @@ export default function GlassBalanceCard({
   onSettleUp,
   onAddExpense,
 }: GlassBalanceCardProps) {
+  const { theme } = useTheme();
+  const { colors } = theme;
   const isPositive = netBalance >= 0;
-  const glowColor = isPositive ? 'rgba(52,211,153,0.16)' : 'rgba(239,68,68,0.12)';
+  const primaryForeground = theme.dark ? colors.black : colors.white;
+
+  const wrapperBg = theme.dark
+    ? 'rgba(30,28,42,0.86)'
+    : 'rgba(255,255,255,0.9)';
+  const borderColor = theme.dark
+    ? 'rgba(167,139,250,0.22)'
+    : 'rgba(124,58,237,0.12)';
+  const glowColor = isPositive
+    ? (theme.dark ? 'rgba(52,211,153,0.16)' : 'rgba(5,150,105,0.08)')
+    : (theme.dark ? 'rgba(239,68,68,0.12)' : 'rgba(220,38,38,0.06)');
+  const secondaryGlow = theme.dark
+    ? 'rgba(124,58,237,0.10)'
+    : 'rgba(124,58,237,0.04)';
+  const dividerColor = theme.dark
+    ? 'rgba(167,139,250,0.2)'
+    : 'rgba(124,58,237,0.12)';
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, { backgroundColor: wrapperBg, borderColor }]}>
       <View pointerEvents="none" style={[styles.glowPrimary, { backgroundColor: glowColor }]} />
-      <View pointerEvents="none" style={styles.glowSecondary} />
+      <View pointerEvents="none" style={[styles.glowSecondary, { backgroundColor: secondaryGlow }]} />
 
       <View style={styles.content}>
-        <Text style={styles.label}>Total Balance</Text>
+        <Text style={[styles.label, { color: colors.textSecondary }]}>Total Balance</Text>
         <Text style={[styles.amount, { color: isPositive ? colors.owed : colors.owes }]}>
           {isPositive ? '+' : '-'}₹{Math.abs(netBalance).toFixed(2)}
         </Text>
 
         <View style={styles.statsRow}>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{'\u20B9'}{totalOwes.toFixed(2)}</Text>
+            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{'₹'}{totalOwes.toFixed(2)}</Text>
             <Text style={[styles.statLabel, { color: colors.owes }]}>
               you owe · {negativeGroupCount} groups
             </Text>
           </View>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: dividerColor }]} />
           <View style={styles.stat}>
-            <Text style={[styles.statValue, { color: colors.owed }]}>{'\u20B9'}{totalOwed.toFixed(2)}</Text>
+            <Text style={[styles.statValue, { color: colors.owed }]}>{'₹'}{totalOwed.toFixed(2)}</Text>
             <Text style={[styles.statLabel, { color: colors.owed }]}>
               owed to you · {positiveGroupCount} groups
             </Text>
@@ -52,11 +71,18 @@ export default function GlassBalanceCard({
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.settleBtnGlass} onPress={onSettleUp} activeOpacity={0.8}>
-            <Text style={styles.settleBtnText}>Settle Up</Text>
+          <TouchableOpacity style={[styles.settleBtnGlass, { backgroundColor: colors.primary }]} onPress={onSettleUp} activeOpacity={0.8}>
+            <Text style={[styles.settleBtnText, { color: primaryForeground }]}>Settle Up</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addBtn} onPress={onAddExpense} activeOpacity={0.8}>
-            <Text style={styles.addBtnText}>+ Add Expense</Text>
+          <TouchableOpacity
+            style={[styles.addBtn, {
+              backgroundColor: colors.primaryLight,
+              borderColor: theme.dark ? 'rgba(167,139,250,0.25)' : 'rgba(124,58,237,0.15)',
+            }]}
+            onPress={onAddExpense}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.addBtnText, { color: colors.primary }]}>+ Add Expense</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -69,9 +95,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.xl,
     overflow: 'hidden',
     minHeight: 220,
-    backgroundColor: 'rgba(30,28,42,0.86)',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.22)',
   },
   glowPrimary: {
     position: 'absolute',
@@ -88,7 +112,6 @@ const styles = StyleSheet.create({
     borderRadius: 90,
     bottom: -80,
     left: -70,
-    backgroundColor: 'rgba(124,58,237,0.10)',
   },
   content: {
     padding: spacing.xl,
@@ -98,7 +121,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color: colors.textSecondary,
     marginBottom: spacing.sm,
   },
   amount: {
@@ -119,7 +141,6 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textPrimary,
   },
   statLabel: {
     fontSize: 10,
@@ -131,7 +152,6 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     height: 28,
-    backgroundColor: 'rgba(167,139,250,0.2)',
   },
   actions: {
     flexDirection: 'row',
@@ -139,28 +159,23 @@ const styles = StyleSheet.create({
   },
   settleBtnGlass: {
     flex: 1,
-    backgroundColor: colors.primary,
     borderRadius: borderRadius.md,
     paddingVertical: 13,
     alignItems: 'center',
   },
   settleBtnText: {
-    color: colors.black,
     fontWeight: '700',
     fontSize: 14,
     letterSpacing: 0.2,
   },
   addBtn: {
     flex: 1,
-    backgroundColor: 'rgba(167,139,250,0.12)',
     borderRadius: borderRadius.md,
     paddingVertical: 13,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.25)',
   },
   addBtnText: {
-    color: colors.primary,
     fontWeight: '600',
     fontSize: 14,
   },

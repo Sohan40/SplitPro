@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
   StatusBar,
   ActivityIndicator,
 } from 'react-native';
-import { colors, typography, spacing, borderRadius } from '../../components/theme';
+import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import { useTheme } from '../../context/ThemeContext';
 import Button from '../../components/Button';
 import GlassCard from '../../components/GlassCard';
 import type { SignUpScreenProps } from '../../navigation/types';
@@ -23,6 +24,9 @@ import { signInWithGoogle } from '../../services/googleAuthService';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 export default function SignUpScreen({ navigation }: SignUpScreenProps) {
+  const { theme, isDark } = useTheme();
+  const { colors, typography } = theme;
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const keyboardAnim = useRef(new Animated.Value(0)).current;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -110,7 +114,7 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
 
   return (
     <Animated.View style={[styles.container, { paddingBottom: keyboardAnim }]}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       <ScrollView
         style={styles.scrollView}
@@ -268,7 +272,7 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

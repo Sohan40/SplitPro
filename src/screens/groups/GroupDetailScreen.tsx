@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import { colors, typography, spacing, borderRadius, shadows } from '../../components/theme';
+import { spacing, borderRadius, shadows, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import { expenseService } from '../../services/expenseService';
@@ -32,6 +33,10 @@ const CATEGORY_ICON_MAP: Record<string, string> = {
 export default function GroupDetailScreen({ route, navigation }: GroupDetailScreenProps) {
   const { groupId, groupName } = route.params;
   const { user } = useAuth();
+  const { theme, isDark } = useTheme();
+  const { colors, typography } = theme;
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+  const primaryForeground = isDark ? colors.black : colors.white;
 
   const [group, setGroup] = useState<Group | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -129,7 +134,7 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
       {/* Balance Hero Header - wrapped in GlassCard with Skia glow */}
       <GlassCard padding="none" gradientDir="diagonal" style={styles.header}>
@@ -192,14 +197,14 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
         onPress={() => navigation.navigate('AddExpense', { groupId, groupName })}
         activeOpacity={0.8}
       >
-        <Icon name="add" size={24} color={colors.black} />
-        <Text style={styles.fabText}>Add Expense</Text>
+        <Icon name="add" size={24} color={primaryForeground} />
+        <Text style={[styles.fabText, { color: primaryForeground }]}>Add Expense</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -323,7 +328,6 @@ const styles = StyleSheet.create({
     ...shadows.lg,
   },
   fabText: {
-    color: colors.black,
     fontWeight: '700',
     fontSize: 15,
   },

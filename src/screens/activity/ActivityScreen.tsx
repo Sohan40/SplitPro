@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   SectionList,
 } from 'react-native';
-import { colors, typography, spacing, borderRadius } from '../../components/theme';
+import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { expenseService } from '../../services/expenseService';
 import { groupService } from '../../services/groupService';
@@ -54,6 +55,9 @@ function groupByDate(expenses: Expense[]): { title: string; data: Expense[] }[] 
 
 export default function ActivityScreen({ navigation }: ActivityScreenProps) {
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const [activities, setActivities] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -175,7 +179,7 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

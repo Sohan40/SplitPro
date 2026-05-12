@@ -68,7 +68,7 @@ jobs:
         run: |
           npm install -g firebase-tools
 
-          firebase appdistribution:distribute android/app/build/outputs/apk/release/app-release.apk --app "1:98378274298:android:f765fe916d1d0a57b98043" --groups "Flatmates" --release-notes "New GitHub Actions build"
+          firebase appdistribution:distribute android/app/build/outputs/apk/release/app-release.apk --app "1:98378274298:android:f765fe916d1d0a57b98043" --groups "Flatmates" --release-notes "v1.0.5 (Build 6): Added Light/Dark/System appearance settings, migrated screens/components to theme-aware colors, and polished profile/settings navigation."
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_CI_TOKEN }}
 

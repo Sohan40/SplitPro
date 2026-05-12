@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
-import { colors, typography, spacing, borderRadius } from '../../components/theme';
+import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { groupService } from '../../services/groupService';
 import { userService } from '../../services/userService';
@@ -10,9 +11,13 @@ import GlassCard from '../../components/GlassCard';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import Icon from 'react-native-vector-icons/Ionicons';
+import type { ProfileScreenProps } from '../../navigation/types';
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const { user, logout } = useAuth();
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const [summary, setSummary] = useState({ totalBalance: 0, youOwe: 0, youAreOwed: 0 });
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
@@ -161,7 +166,7 @@ export default function ProfileScreen() {
       </View>
 
       <GlassCard padding="none" style={styles.menu}>
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Settings')}>
           <View style={[styles.menuIcon, { backgroundColor: colors.primaryLight }]}>
             <Icon name="settings-outline" size={20} color={colors.primary} />
           </View>
@@ -226,7 +231,7 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,

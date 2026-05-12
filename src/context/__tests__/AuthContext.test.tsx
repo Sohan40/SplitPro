@@ -1,6 +1,3 @@
-import React from 'react';
-import { Text } from 'react-native';
-import renderer from 'react-test-renderer';
 import { AuthProvider, useAuth } from '../AuthContext';
 
 // Mock dependencies
@@ -31,12 +28,6 @@ jest.mock('../../services/pushNotificationService', () => ({
     unregisterDevice: jest.fn(),
   },
 }));
-
-const TestComponent = () => {
-  const { user, loading } = useAuth();
-  if (loading) return <Text>Loading...</Text>;
-  return <Text>{user ? 'Logged In' : 'Logged Out'}</Text>;
-};
 
 describe('AuthContext', () => {
   beforeEach(() => {
