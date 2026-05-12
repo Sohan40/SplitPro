@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const { FieldValue } = require("firebase-admin/firestore");
 const {
   buildAiInsightCacheId,
@@ -10,16 +11,21 @@ const {
   incrementUsageTransaction,
   readUsageAvailability,
 } = require("./checkAndIncrementUsage");
+const { buildSpendContext } = require("./buildSpendContext");
+const { callOpenAi } = require("./openaiClient");
+const { buildPrompt } = require("./prompts");
+const { deterministicFallback, validateAiOutput } = require("./validateAiOutput");
 const { getGroupForMember } = require("../groups/checkGroupMembership");
 
+const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
 const FEATURES = new Set([
   "monthly_summary",
   "budget_suggestion",
   "category_insight",
   "group_question",
 ]);
-const MOCK_CONTENT = "This is a mock AI insight. Your AI entitlement and usage gate are working.";
 const MAX_QUESTION_LENGTH = 300;
+const MAX_EXPENSES_PER_REQUEST = 750;
 
 function getCurrentMonthKey(date = new Date()) {
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -70,25 +76,39 @@ async function getGroupExpenses(db, groupId) {
     .where("groupId", "==", groupId)
     .get();
 
+  if (snapshot.size > MAX_EXPENSES_PER_REQUEST) {
+    throw new HttpsError("resource-exhausted", "This group has too much data for one AI request.");
+  }
+
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }
 
-function buildMockStructured(input, latestExpenseUpdatedAt) {
+function getOpenAiKey() {
+  try {
+    return OPENAI_API_KEY.value() || process.env.OPENAI_API_KEY || "";
+  } catch {
+    return process.env.OPENAI_API_KEY || "";
+  }
+}
+
+function responseFromInsight({ insight, cached, source, usage }) {
   return {
-    feature: input.feature,
-    monthKey: input.monthKey,
-    latestExpenseUpdatedAt,
-    mock: true,
+    cached,
+    content: insight.summary,
+    structured: insight,
+    source,
+    usage,
   };
 }
 
 function createRequestSpendInsightFunction(db) {
   return onCall({
     region: "us-central1",
-    timeoutSeconds: 30,
+    timeoutSeconds: 60,
     memory: "256MiB",
     enforceAppCheck: process.env.SPLITPRO_ENFORCE_APP_CHECK === "true",
     consumeAppCheckToken: process.env.SPLITPRO_CONSUME_APP_CHECK_TOKEN === "true",
+    secrets: [OPENAI_API_KEY],
   }, async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
@@ -96,10 +116,10 @@ function createRequestSpendInsightFunction(db) {
     }
 
     const input = validateInput(request.data);
-    await getGroupForMember(db, input.groupId, uid);
+    const group = await getGroupForMember(db, input.groupId, uid);
     const { usage } = await readUsageAvailability(db, uid);
-
     const expenses = await getGroupExpenses(db, input.groupId);
+    const context = buildSpendContext({ group, expenses, monthKey: input.monthKey });
     const latestExpenseUpdatedAt = getLatestExpenseUpdatedAt(expenses);
     const cacheId = buildAiInsightCacheId({
       groupId: input.groupId,
@@ -113,31 +133,35 @@ function createRequestSpendInsightFunction(db) {
 
     if (cachedDoc.exists) {
       const cached = cachedDoc.data();
-      return {
-        cached: true,
-        content: cached.content || MOCK_CONTENT,
-        structured: cached.structured || undefined,
-        usage,
-      };
+      if (cached?.structured?.title && cached?.structured?.summary) {
+        return {
+          cached: true,
+          content: cached.content || cached.structured.summary,
+          structured: cached.structured,
+          source: "cache",
+          usage,
+        };
+      }
     }
 
-    const structured = buildMockStructured(input, latestExpenseUpdatedAt);
-    await cacheRef.set({
-      feature: input.feature,
-      monthKey: input.monthKey,
-      questionHash: buildAiInsightCacheId({
-        groupId: input.groupId,
-        feature: input.feature,
-        monthKey: input.monthKey,
-        question: input.question,
-        latestExpenseUpdatedAt: 0,
-      }),
-      latestExpenseUpdatedAt,
-      content: MOCK_CONTENT,
-      structured,
-      mock: true,
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    if (context.expenseCount < 2) {
+      return responseFromInsight({
+        insight: deterministicFallback(context),
+        cached: false,
+        source: "deterministic_fallback",
+        usage,
+      });
+    }
+
+    const apiKey = getOpenAiKey();
+    if (!apiKey) {
+      return responseFromInsight({
+        insight: deterministicFallback(context),
+        cached: false,
+        source: "configuration_fallback",
+        usage,
+      });
+    }
 
     const updatedUsage = await incrementUsageTransaction(db, uid, {
       groupId: input.groupId,
@@ -145,19 +169,59 @@ function createRequestSpendInsightFunction(db) {
       monthKey: input.monthKey,
       cached: false,
     });
+    const prompt = buildPrompt({
+      type: input.feature,
+      context,
+      question: input.question,
+    });
+    const requestId = `splitpro-${cacheId}-${Date.now()}`;
 
-    return {
-      cached: false,
-      content: MOCK_CONTENT,
-      structured,
-      usage: updatedUsage,
-    };
+    try {
+      const openAiResult = await callOpenAi({ apiKey, prompt, requestId });
+      const validation = validateAiOutput(openAiResult.outputText);
+      const insight = validation.ok ? validation.value : deterministicFallback(context);
+      const source = validation.ok ? "openai" : "validation_fallback";
+
+      if (validation.ok) {
+        await cacheRef.set({
+          feature: input.feature,
+          monthKey: input.monthKey,
+          questionHash: buildAiInsightCacheId({
+            groupId: input.groupId,
+            feature: input.feature,
+            monthKey: input.monthKey,
+            question: input.question,
+            latestExpenseUpdatedAt: 0,
+          }),
+          latestExpenseUpdatedAt,
+          content: insight.summary,
+          structured: insight,
+          model: openAiResult.model,
+          tokenUsage: openAiResult.usage || null,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
+
+      return responseFromInsight({
+        insight,
+        cached: false,
+        source,
+        usage: updatedUsage,
+      });
+    } catch (error) {
+      console.warn("AI insight generation failed:", error.message);
+      return responseFromInsight({
+        insight: deterministicFallback(context),
+        cached: false,
+        source: "error_fallback",
+        usage: updatedUsage,
+      });
+    }
   });
 }
 
 module.exports = {
   FEATURES,
-  MOCK_CONTENT,
   createRequestSpendInsightFunction,
   validateInput,
 };
