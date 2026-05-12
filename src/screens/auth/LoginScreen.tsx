@@ -55,14 +55,29 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
   }, [keyboardAnim]);
 
   const handleLogin = async () => {
-    if (!email || !password) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
     
     setLoading(true);
     try {
-      await auth.signInWithEmailAndPassword(email, password);
+      const userCredential = await auth.signInWithEmailAndPassword(normalizedEmail, password);
+      const firebaseUser = userCredential.user;
+
+      await firebaseUser.reload();
+
+      if (!firebaseUser.emailVerified) {
+        await firebaseUser.sendEmailVerification();
+        await auth.signOut();
+        Alert.alert(
+          'Email Not Verified',
+          'Please verify your email address before signing in. We sent a new verification link to your inbox.',
+        );
+        return;
+      }
       // Navigation will be handled automatically by AuthContext + App.tsx
     } catch (error: any) {
       console.error(error);

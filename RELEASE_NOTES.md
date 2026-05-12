@@ -1,5 +1,19 @@
 # SplitPro Release Notes
 
+## v1.0.6 (Build 7) - May 12, 2026
+
+### Email Verification
+- Added Firebase email verification for email/password signups
+- Blocked unverified email/password users from entering the app
+- Resend the verification email when an unverified user tries to sign in
+
+### Push Registration Fix
+- Create the Firestore user profile before first-login push registration
+- Save FCM tokens with merge-safe writes to avoid missing document errors
+- Ignore missing profile documents when removing FCM tokens during logout
+
+---
+
 ## v1.0.5 (Build 6) - May 12, 2026
 
 ### Light Theme Support

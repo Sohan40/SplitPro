@@ -28,28 +28,46 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
+        const requiresEmailVerification = firebaseUser.providerData.some(
+          provider => provider.providerId === 'password',
+        );
+
+        if (requiresEmailVerification && !firebaseUser.emailVerified) {
+          if (profileUnsubscribe) {
+            profileUnsubscribe();
+            profileUnsubscribe = undefined;
+          }
+          if (pushUnsubscribeRef.current) {
+            pushUnsubscribeRef.current();
+            pushUnsubscribeRef.current = null;
+          }
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        const userRef = db.collection('users').doc(firebaseUser.uid);
+        const existingUserDoc = await userRef.get();
+
+        if (!existingUserDoc.exists()) {
+          const newProfile: User = {
+            id: firebaseUser.uid,
+            name: firebaseUser.displayName || 'User',
+            email: firebaseUser.email?.toLowerCase() || '',
+            photoUrl: firebaseUser.photoURL,
+            createdAt: Date.now(),
+          };
+          await userService.saveUser(newProfile);
+        }
+
         // Subscribe to real-time user profile updates from Firestore
-        profileUnsubscribe = db.collection('users').doc(firebaseUser.uid).onSnapshot(async (doc) => {
+        profileUnsubscribe = userRef.onSnapshot(async (doc) => {
           if (doc.exists()) {
             setUser(doc.data() as User);
             setLoading(false);
           } else {
-            // Auto-heal logic if doc doesn't exist yet
-            // Wait a brief moment to see if SignUpScreen creates it
-            setTimeout(async () => {
-              const checkDoc = await db.collection('users').doc(firebaseUser.uid).get();
-              if (!checkDoc.exists()) {
-                const newProfile: User = {
-                  id: firebaseUser.uid,
-                  name: firebaseUser.displayName || 'User',
-                  email: firebaseUser.email?.toLowerCase() || '',
-                  photoUrl: firebaseUser.photoURL,
-                  createdAt: Date.now(),
-                };
-                await userService.saveUser(newProfile);
-                // The snapshot will trigger again automatically when this saves
-              }
-            }, 2000);
+            setUser(null);
+            setLoading(false);
           }
         }, error => {
           console.warn("Error fetching user profile:", error);

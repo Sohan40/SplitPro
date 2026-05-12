@@ -50,9 +50,12 @@ export const pushNotificationService = {
    * Uses arrayUnion so we don't overwrite tokens from other devices.
    */
   async saveTokenToFirestore(userId: string, token: string): Promise<void> {
-    await db.collection(USERS_COLLECTION).doc(userId).update({
-      fcmTokens: firestore.FieldValue.arrayUnion(token),
-    });
+    await db.collection(USERS_COLLECTION).doc(userId).set(
+      {
+        fcmTokens: firestore.FieldValue.arrayUnion(token),
+      },
+      { merge: true },
+    );
   },
 
   /**
@@ -60,9 +63,16 @@ export const pushNotificationService = {
    * Called on logout so the device stops receiving pushes for this user.
    */
   async removeTokenFromFirestore(userId: string, token: string): Promise<void> {
-    await db.collection(USERS_COLLECTION).doc(userId).update({
-      fcmTokens: firestore.FieldValue.arrayRemove(token),
-    });
+    try {
+      await db.collection(USERS_COLLECTION).doc(userId).update({
+        fcmTokens: firestore.FieldValue.arrayRemove(token),
+      });
+    } catch (error: any) {
+      if (error.code === 'firestore/not-found') {
+        return;
+      }
+      throw error;
+    }
   },
 
   /**

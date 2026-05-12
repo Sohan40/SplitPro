@@ -19,7 +19,6 @@ import Button from '../../components/Button';
 import GlassCard from '../../components/GlassCard';
 import type { SignUpScreenProps } from '../../navigation/types';
 import { auth } from '../../services/firebase';
-import { userService } from '../../services/userService';
 import { signInWithGoogle } from '../../services/googleAuthService';
 import Icon from 'react-native-vector-icons/Ionicons';
 
@@ -59,7 +58,10 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
   }, [keyboardAnim]);
 
   const handleSignUp = async () => {
-    if (!name || !email || !password || !confirmPassword) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const trimmedName = name.trim();
+
+    if (!trimmedName || !normalizedEmail || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -71,23 +73,21 @@ export default function SignUpScreen({ navigation }: SignUpScreenProps) {
 
     setLoading(true);
     try {
-      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+      const userCredential = await auth.createUserWithEmailAndPassword(normalizedEmail, password);
       
       // Update Firebase Auth profile
       await userCredential.user.updateProfile({
-        displayName: name,
+        displayName: trimmedName,
       });
 
-      // Save to Firestore
-      await userService.saveUser({
-        id: userCredential.user.uid,
-        name,
-        email: email.toLowerCase(),
-        photoUrl: null,
-        createdAt: Date.now(),
-      });
+      await userCredential.user.sendEmailVerification();
+      await auth.signOut();
 
-      // Navigation will be handled automatically by AuthContext + App.tsx
+      Alert.alert(
+        'Verify Your Email',
+        'We sent a verification link to your email address. Please verify it, then sign in.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }],
+      );
     } catch (error: any) {
       console.error(error);
       Alert.alert('Sign Up Failed', error.message || 'An error occurred during sign up');
