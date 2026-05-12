@@ -93,3 +93,10 @@ ios/*/GoogleService-Info.plist
 !debug.keystore
 
 .aider*
+
+.agents*
+
+AGENTS.md
+
+plans*
+skills-lock.json
