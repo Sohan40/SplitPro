@@ -8,7 +8,10 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
-    "test:rules": "node scripts/run-firestore-rules-tests.cjs"
+    "test:rules": "node scripts/run-firestore-rules-tests.cjs",
+    "test:phase4-ai-emulator": "node scripts/run-phase4-ai-emulator-tests.cjs",
+    "admin:grant-ai-test": "node functions/scripts/grantAiTestEntitlement.js",
+    "admin:revoke-ai-test": "node functions/scripts/revokeAiTestEntitlement.js"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",

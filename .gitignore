@@ -77,6 +77,12 @@ yarn-error.log
 # Firebase
 android/app/google-services.json
 ios/*/GoogleService-Info.plist
+.tmp-firebase-config/
+.tmp-firebase-emulators/
+firebase-debug.log
+firestore-debug.log
+**/serviceAccountKey.json
+**/*firebase-adminsdk*.json
 
 # Environment variables
 .env

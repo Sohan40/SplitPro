@@ -18,6 +18,7 @@ export type GroupStackParamList = {
   ExpenseDetail: { groupId: string; expenseId: string };
   SettleUp: { groupId: string; groupName: string };
   SpendAnalysis: { groupId: string; groupName: string; monthKey?: string };
+  UpgradeAi: undefined;
 };
 
 // Profile Stack (nested in Profile tab)
@@ -56,6 +57,7 @@ export type AddExpenseScreenProps = NativeStackScreenProps<GroupStackParamList, 
 export type ExpenseDetailScreenProps = NativeStackScreenProps<GroupStackParamList, 'ExpenseDetail'>;
 export type SettleUpScreenProps = NativeStackScreenProps<GroupStackParamList, 'SettleUp'>;
 export type SpendAnalysisScreenProps = NativeStackScreenProps<GroupStackParamList, 'SpendAnalysis'>;
+export type UpgradeScreenProps = NativeStackScreenProps<GroupStackParamList, 'UpgradeAi'>;
 
 export type ActivityScreenProps = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Activity'>,

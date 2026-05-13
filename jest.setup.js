@@ -12,8 +12,25 @@ jest.mock('@react-native-google-signin/google-signin', () => ({
   },
 }));
 
+jest.mock('@react-native-firebase/app', () => {
+  const firebaseApp = {
+    app: jest.fn(() => ({
+      options: {
+        projectId: 'splitpro-test',
+      },
+    })),
+  };
+
+  return {
+    __esModule: true,
+    default: firebaseApp,
+    ...firebaseApp,
+  };
+});
+
 jest.mock('@react-native-firebase/auth', () => {
   const auth = jest.fn(() => ({
+    currentUser: null,
     onAuthStateChanged: jest.fn(callback => {
       callback(null);
       return jest.fn();

@@ -15,6 +15,7 @@ import GlassCard from '../../components/GlassCard';
 import { borderRadius, spacing, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import AiInsightsSection from '../../features/ai/components/AiInsightsSection';
 import {
   calculateSpendAnalytics,
   formatCurrency,
@@ -28,11 +29,25 @@ import { expenseService } from '../../services/expenseService';
 import { groupService } from '../../services/groupService';
 
 type LoadState = 'loading' | 'ready' | 'error';
+type AnalysisTab = 'overview' | 'members' | 'trends' | 'ai';
 
 type SectionProps = {
   title: string;
   children: React.ReactNode;
 };
+
+type TabItem = {
+  key: AnalysisTab;
+  label: string;
+  icon: string;
+};
+
+const ANALYSIS_TABS: TabItem[] = [
+  { key: 'overview', label: 'Overview', icon: 'grid-outline' },
+  { key: 'members', label: 'Members', icon: 'people-outline' },
+  { key: 'trends', label: 'Trends', icon: 'trending-up-outline' },
+  { key: 'ai', label: 'AI', icon: 'sparkles-outline' },
+];
 
 function AnalyticsSection({ title, children }: SectionProps) {
   const { theme } = useTheme();
@@ -80,6 +95,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [monthKey, setMonthKey] = useState(initialMonthKey || getCurrentMonthKey());
+  const [activeTab, setActiveTab] = useState<AnalysisTab>('overview');
 
   useEffect(() => {
     navigation.setOptions({ title: `${groupName} Analysis` });
@@ -136,6 +152,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
   const currentUserStats = summary?.memberStats.find(member => member.uid === user?.id);
   const maxTrendAmount = Math.max(...(summary?.monthlyTrend.map(item => item.amount) || [0]), 1);
   const topCategory = summary?.categoryBreakdown[0]?.category || 'None';
+  const highestExpense = summary?.topExpenses[0];
 
   if (loadState === 'loading') {
     return (
@@ -186,53 +203,112 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
           </TouchableOpacity>
         </View>
 
-        {!hasAnySpend ? (
-          <EmptyState
-            icon="analytics-outline"
-            title="No spending to analyze yet"
-            message="Add a group expense to see category totals, member shares, trends, and basic insights."
-          />
-        ) : (
-          <>
-            {summary.expenseCount === 0 && (
-              <GlassCard style={styles.noticeCard}>
-                <Icon name="calendar-outline" size={22} color={colors.textSecondary} />
-                <View style={styles.noticeCopy}>
-                  <Text style={styles.noticeTitle}>No expenses this month</Text>
-                  <Text style={styles.noticeText}>Try another month or add a new expense for this group.</Text>
-                </View>
-              </GlassCard>
-            )}
-
-            <View style={styles.metricGrid}>
-              {renderMetricCard(styles, colors, 'Total Spend', formatCurrency(summary.totalSpend), 'wallet-outline')}
-              {renderMetricCard(styles, colors, 'Expenses', `${summary.expenseCount}`, 'receipt-outline')}
-              {renderMetricCard(styles, colors, 'Top Category', topCategory, 'pricetag-outline')}
-              {renderMetricCard(
-                styles,
-                colors,
-                'Your Net',
-                currentUserStats ? formatCurrency(currentUserStats.net) : 'N/A',
-                'person-circle-outline',
-                currentUserStats && currentUserStats.net < 0 ? colors.owes : colors.owed,
-              )}
+        {!hasAnySpend && (
+          <GlassCard style={styles.noticeCard}>
+            <Icon name="analytics-outline" size={22} color={colors.textSecondary} />
+            <View style={styles.noticeCopy}>
+              <Text style={styles.noticeTitle}>No spending to analyze yet</Text>
+              <Text style={styles.noticeText}>
+                Add a group expense to unlock richer analysis across these tabs.
+              </Text>
             </View>
+          </GlassCard>
+        )}
 
-            {summary.expenseCount > 0 && summary.expenseCount < 3 && (
-              <GlassCard style={styles.noticeCard}>
-                <Icon name="information-circle-outline" size={22} color={colors.info} />
-                <View style={styles.noticeCopy}>
-                  <Text style={styles.noticeTitle}>Small data set</Text>
-                  <Text style={styles.noticeText}>
-                    Insights will become more useful after a few more expenses are added.
-                  </Text>
-                </View>
-              </GlassCard>
-            )}
+        {hasAnySpend && summary.expenseCount === 0 && (
+          <GlassCard style={styles.noticeCard}>
+            <Icon name="calendar-outline" size={22} color={colors.textSecondary} />
+            <View style={styles.noticeCopy}>
+              <Text style={styles.noticeTitle}>No expenses this month</Text>
+              <Text style={styles.noticeText}>Try another month or add a new expense for this group.</Text>
+            </View>
+          </GlassCard>
+        )}
+
+        <View style={styles.metricGrid}>
+          {renderMetricCard(styles, colors, 'Total Spend', formatCurrency(summary.totalSpend), 'wallet-outline')}
+          {renderMetricCard(styles, colors, 'Expenses', `${summary.expenseCount}`, 'receipt-outline')}
+          {renderMetricCard(styles, colors, 'Top Category', topCategory, 'pricetag-outline')}
+          {renderMetricCard(
+            styles,
+            colors,
+            'Your Net',
+            currentUserStats ? formatCurrency(currentUserStats.net) : 'N/A',
+            'person-circle-outline',
+            currentUserStats && currentUserStats.net < 0 ? colors.owes : colors.owed,
+          )}
+        </View>
+
+        {summary.expenseCount > 0 && summary.expenseCount < 3 && (
+          <GlassCard style={styles.noticeCard}>
+            <Icon name="information-circle-outline" size={22} color={colors.info} />
+            <View style={styles.noticeCopy}>
+              <Text style={styles.noticeTitle}>Small data set</Text>
+              <Text style={styles.noticeText}>
+                Insights will become more useful after a few more expenses are added.
+              </Text>
+            </View>
+          </GlassCard>
+        )}
+
+        <View style={styles.tabBar} accessibilityRole="tablist">
+          {ANALYSIS_TABS.map(tab => {
+            const isActive = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.tabButton, isActive ? styles.tabButtonActive : null]}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isActive }}
+                onPress={() => setActiveTab(tab.key)}
+              >
+                <Icon
+                  name={tab.icon}
+                  size={16}
+                  color={isActive ? colors.primary : colors.textSecondary}
+                />
+                <Text style={[styles.tabLabel, isActive ? styles.tabLabelActive : null]}>{tab.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {activeTab === 'overview' && (
+          <>
+            <AnalyticsSection title="Overview Snapshot">
+              <View style={styles.overviewGrid}>
+                {renderCompactStat(styles, colors, 'Total Spend', formatCurrency(summary.totalSpend), 'wallet-outline')}
+                {renderCompactStat(styles, colors, 'Top Category', topCategory, 'pricetag-outline')}
+                {renderCompactStat(
+                  styles,
+                  colors,
+                  'Highest Expense',
+                  highestExpense ? formatCurrency(highestExpense.amount) : 'None',
+                  'receipt-outline',
+                )}
+              </View>
+              {highestExpense && (
+                <GlassCard style={styles.rowCard} padding="sm">
+                  <View style={styles.rowHeader}>
+                    <View style={styles.memberNameWrap}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>{highestExpense.title}</Text>
+                      <Text style={styles.rowMeta}>
+                        Highest expense - {highestExpense.category} - Paid by {highestExpense.paidByName}
+                      </Text>
+                    </View>
+                    <Text style={styles.rowAmount}>{formatCurrency(highestExpense.amount)}</Text>
+                  </View>
+                </GlassCard>
+              )}
+            </AnalyticsSection>
 
             <AnalyticsSection title="Category Breakdown">
               {summary.categoryBreakdown.length === 0 ? (
-                <Text style={styles.mutedText}>No category totals for this month.</Text>
+                <EmptyState
+                  icon="pricetag-outline"
+                  title="No category totals"
+                  message="Category breakdown appears after this month has spending."
+                />
               ) : (
                 summary.categoryBreakdown.map(item => (
                   <GlassCard key={item.category} style={styles.rowCard} padding="sm">
@@ -249,8 +325,29 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
               )}
             </AnalyticsSection>
 
-            <AnalyticsSection title="Member-wise Spend">
-              {summary.memberStats.map(member => (
+            <AnalyticsSection title="Basic Insights">
+              <GlassCard style={styles.insightCard}>
+                {summary.deterministicInsights.map(insight => (
+                  <View key={insight} style={styles.insightRow}>
+                    <Icon name="sparkles-outline" size={18} color={colors.primary} />
+                    <Text style={styles.insightText}>{insight}</Text>
+                  </View>
+                ))}
+              </GlassCard>
+            </AnalyticsSection>
+          </>
+        )}
+
+        {activeTab === 'members' && (
+          <AnalyticsSection title="Member-wise Spend">
+            {summary.memberStats.length === 0 ? (
+              <EmptyState
+                icon="people-outline"
+                title="No members to analyze"
+                message="Member analytics appear after this group has members."
+              />
+            ) : (
+              summary.memberStats.map(member => (
                 <GlassCard key={member.uid} style={styles.rowCard} padding="sm">
                   <View style={styles.rowHeader}>
                     <View style={styles.memberNameWrap}>
@@ -264,9 +361,13 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
                     </Text>
                   </View>
                 </GlassCard>
-              ))}
-            </AnalyticsSection>
+              ))
+            )}
+          </AnalyticsSection>
+        )}
 
+        {activeTab === 'trends' && (
+          <>
             <AnalyticsSection title="Monthly Trend">
               <GlassCard style={styles.trendCard}>
                 {summary.monthlyTrend.map(item => (
@@ -286,9 +387,13 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
               </GlassCard>
             </AnalyticsSection>
 
-            <AnalyticsSection title="Top Expenses">
+            <AnalyticsSection title="Largest Expenses">
               {summary.topExpenses.length === 0 ? (
-                <Text style={styles.mutedText}>No top expenses for this month.</Text>
+                <EmptyState
+                  icon="receipt-outline"
+                  title="No largest expenses yet"
+                  message="Largest expenses appear after this month has spending."
+                />
               ) : (
                 summary.topExpenses.map(expense => (
                   <GlassCard key={expense.id} style={styles.rowCard} padding="sm">
@@ -306,18 +411,17 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
                 ))
               )}
             </AnalyticsSection>
-
-            <AnalyticsSection title="Basic Insights">
-              <GlassCard style={styles.insightCard}>
-                {summary.deterministicInsights.map(insight => (
-                  <View key={insight} style={styles.insightRow}>
-                    <Icon name="sparkles-outline" size={18} color={colors.primary} />
-                    <Text style={styles.insightText}>{insight}</Text>
-                  </View>
-                ))}
-              </GlassCard>
-            </AnalyticsSection>
           </>
+        )}
+
+        {activeTab === 'ai' && (
+          <AiInsightsSection
+            groupId={groupId}
+            monthKey={monthKey}
+            hasMonthlyExpenses={summary.expenseCount > 0}
+            isSmallDataSet={summary.expenseCount > 0 && summary.expenseCount < 3}
+            onUpgradePress={() => navigation.navigate('UpgradeAi')}
+          />
         )}
       </ScrollView>
     </View>
@@ -339,6 +443,22 @@ function renderMetricCard(
       <Text style={[styles.metricValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>
         {value}
       </Text>
+    </GlassCard>
+  );
+}
+
+function renderCompactStat(
+  styles: ReturnType<typeof createStyles>,
+  colors: ThemeColors,
+  label: string,
+  value: string,
+  icon: string,
+) {
+  return (
+    <GlassCard style={styles.compactStatCard} padding="sm">
+      <Icon name={icon} size={18} color={colors.primary} />
+      <Text style={styles.compactStatLabel}>{label}</Text>
+      <Text style={styles.compactStatValue} numberOfLines={1}>{value}</Text>
     </GlassCard>
   );
 }
@@ -433,6 +553,53 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     ...typography.heading3,
     marginTop: spacing.xs,
   },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.xs,
+    gap: spacing.xs,
+  },
+  tabButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: borderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  tabButtonActive: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+  },
+  tabLabel: {
+    ...typography.small,
+    textAlign: 'center',
+  },
+  tabLabelActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  overviewGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  compactStatCard: {
+    flex: 1,
+    minWidth: 96,
+    gap: spacing.xs,
+  },
+  compactStatLabel: {
+    ...typography.small,
+    textTransform: 'uppercase',
+  },
+  compactStatValue: {
+    ...typography.bodyBold,
+  },
   rowCard: {
     gap: spacing.sm,
   },
@@ -515,10 +682,5 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   insightText: {
     ...typography.body,
     flex: 1,
-  },
-  mutedText: {
-    ...typography.caption,
-    textAlign: 'center',
-    paddingVertical: spacing.lg,
   },
 });
