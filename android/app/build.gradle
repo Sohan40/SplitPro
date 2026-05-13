@@ -78,9 +78,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.splitpro"
+    namespace "com.zyntaillabs.splitpro"
     defaultConfig {
-        applicationId "com.splitpro"
+        applicationId "com.zyntaillabs.splitpro"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 7

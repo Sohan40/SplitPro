@@ -1,4 +1,4 @@
-package com.splitpro
+package com.zyntaillabs.splitpro
 
 import android.app.Application
 import android.app.NotificationChannel

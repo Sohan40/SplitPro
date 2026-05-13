@@ -1,4 +1,4 @@
-package com.splitpro
+package com.zyntaillabs.splitpro
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
