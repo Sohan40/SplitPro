@@ -69,3 +69,29 @@ jest.mock('@react-native-firebase/messaging', () => jest.fn(() => ({
   onNotificationOpenedApp: jest.fn(() => jest.fn()),
   getInitialNotification: jest.fn(),
 })));
+
+jest.mock('react-native-iap', () => ({
+  ErrorCode: {
+    UserCancelled: 'user-cancelled',
+    BillingUnavailable: 'billing-unavailable',
+    IapNotAvailable: 'iap-not-available',
+    ItemUnavailable: 'item-unavailable',
+    SkuNotFound: 'sku-not-found',
+    SkuOfferMismatch: 'sku-offer-mismatch',
+    NetworkError: 'network-error',
+    ServiceDisconnected: 'service-disconnected',
+    ServiceTimeout: 'service-timeout',
+    AlreadyOwned: 'already-owned',
+    Pending: 'pending',
+    DeferredPayment: 'deferred-payment',
+  },
+  initConnection: jest.fn(async () => true),
+  endConnection: jest.fn(async () => undefined),
+  fetchProducts: jest.fn(async () => []),
+  requestPurchase: jest.fn(async () => undefined),
+  restorePurchases: jest.fn(async () => undefined),
+  getAvailablePurchases: jest.fn(async () => []),
+  finishTransaction: jest.fn(async () => undefined),
+  purchaseUpdatedListener: jest.fn(() => ({ remove: jest.fn() })),
+  purchaseErrorListener: jest.fn(() => ({ remove: jest.fn() })),
+}));
