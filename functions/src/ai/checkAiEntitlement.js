@@ -1,7 +1,7 @@
-const ACTIVE_STATUSES = new Set(["active", "grace_period"]);
+const ACTIVE_STATUSES = new Set(["active", "grace_period", "active_until_expiry"]);
 const DEFAULT_PLAN_LIMITS = {
-  ai_monthly: 30,
-  ai_yearly: 50,
+  ai_monthly: 100,
+  ai_yearly: 150,
   test: 20,
 };
 

@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
+import firebaseApp from '@react-native-firebase/app';
 import type { Purchase } from 'react-native-iap';
+import { auth } from '../../services/firebase';
 import {
   getPlanIdForProduct,
   isSplitProAiProductId,
@@ -28,7 +30,7 @@ export type VerifyGooglePlayPurchaseOutput = {
 
 export class PurchaseVerificationUnavailableError extends Error {
   constructor() {
-    super('Purchase verification backend not implemented yet.');
+    super('Purchase verification is temporarily unavailable.');
     this.name = 'PurchaseVerificationUnavailableError';
   }
 }
@@ -66,7 +68,42 @@ export async function verifyPurchaseWithBackend(
     throw new Error('Purchase verification requires a product ID and purchase token.');
   }
 
-  throw new PurchaseVerificationUnavailableError();
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('Sign in before verifying a purchase.');
+  }
+
+  const projectId = firebaseApp.app().options.projectId;
+  if (!projectId) {
+    throw new PurchaseVerificationUnavailableError();
+  }
+
+  const idToken = await currentUser.getIdToken();
+  const response = await fetch(`https://us-central1-${projectId}.cloudfunctions.net/verifyGooglePlayPurchase`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      data: {
+        productId: input.productId,
+        purchaseToken: input.purchaseToken,
+        platform: 'android',
+      },
+    }),
+  });
+
+  const body = await response.json().catch(() => null);
+  if (!response.ok || body.error) {
+    throw new PurchaseVerificationUnavailableError();
+  }
+
+  if (!body?.result) {
+    throw new PurchaseVerificationUnavailableError();
+  }
+
+  return body.result as VerifyGooglePlayPurchaseOutput;
 }
 
 export function getExpectedPlanForVerification(input: VerifyGooglePlayPurchaseInput): SplitProAiPlanId {

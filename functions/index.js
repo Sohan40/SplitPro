@@ -3,6 +3,7 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { createRequestSpendInsightFunction } = require("./src/ai/requestSpendInsight");
+const { createVerifyGooglePlayPurchaseFunction } = require("./src/billing/verifyGooglePlayPurchase");
 
 initializeApp();
 
@@ -10,6 +11,7 @@ const db = getFirestore();
 const messaging = getMessaging();
 
 exports.requestSpendInsight = createRequestSpendInsightFunction(db);
+exports.verifyGooglePlayPurchase = createVerifyGooglePlayPurchaseFunction(db);
 
 /**
  * Cloud Function: sendPushOnNotificationCreate
