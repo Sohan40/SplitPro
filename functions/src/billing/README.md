@@ -14,3 +14,20 @@ Grant app-level permissions for the SplitPro Android app:
 - Manage orders and subscriptions
 
 The Android Publisher API / Google Play Android Developer API must remain enabled in the Google Cloud project.
+
+## Real-time Developer Notifications
+
+Create a Pub/Sub topic for Google Play RTDN and point Play Console to it:
+
+```txt
+splitpro-play-rtdn
+```
+
+If you use a different topic, set `PLAY_RTDN_TOPIC` before deploying functions so
+`handlePlayRtdn` subscribes to the same topic. The RTDN handler treats messages
+only as triggers and re-checks Google Play before updating entitlement.
+
+`reconcileActiveSubscriptions` runs daily and re-verifies server-linked purchase
+tokens. Purchase tokens are kept only in the server-owned token registry so the
+scheduled job can call Google Play; subscription metadata and audit logs store
+only the token hash.

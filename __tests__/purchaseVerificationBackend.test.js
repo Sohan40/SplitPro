@@ -194,7 +194,7 @@ describe("Google Play purchase verification backend", () => {
     expect(normalized.entitlementActive).toBe(true);
   });
 
-  it("grants entitlement for active purchases and stores only a token hash", async () => {
+  it("grants entitlement for active purchases and keeps subscription metadata hash-only", async () => {
     const { db, result, googlePlayClient } = await verify();
     const user = db.get("users/uid-a");
     const subscription = db.get("subscriptions/uid-a");
@@ -223,9 +223,10 @@ describe("Google Play purchase verification backend", () => {
       uid: "uid-a",
       productId: "splitpro_ai_monthly",
       provider: "google_play",
+      purchaseToken: ACTIVE_TOKEN,
     });
     expect(googlePlayClient.acknowledgeSubscription).toHaveBeenCalledTimes(1);
-    expect(db.dumpJson()).not.toContain(ACTIVE_TOKEN);
+    expect(JSON.stringify(subscription)).not.toContain(ACTIVE_TOKEN);
   });
 
   it("is idempotent for repeated verification by the same user", async () => {
@@ -275,6 +276,6 @@ describe("Google Play purchase verification backend", () => {
 
     expect(db.get("users/uid-a").entitlement.ai.plan).toBe("ai_yearly");
     expect(db.get("users/uid-a").aiUsage.limit).toBe(150);
-    expect(db.dumpJson()).not.toContain(OTHER_TOKEN);
+    expect(JSON.stringify(db.get("subscriptions/uid-a"))).not.toContain(OTHER_TOKEN);
   });
 });

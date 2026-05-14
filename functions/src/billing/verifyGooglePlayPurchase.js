@@ -208,6 +208,7 @@ async function writeVerifiedSubscription({ db, uid, input, tokenHash, normalized
       uid,
       productId: input.productId,
       provider: GOOGLE_PLAY_PROVIDER,
+      purchaseToken: input.purchaseToken,
       createdAt: tokenDoc.exists ? tokenDoc.data()?.createdAt || FieldValue.serverTimestamp() : FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });

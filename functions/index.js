@@ -3,6 +3,8 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 const { createRequestSpendInsightFunction } = require("./src/ai/requestSpendInsight");
+const { createHandlePlayRtdnFunction } = require("./src/billing/handlePlayRtdn");
+const { createReconcileActiveSubscriptionsFunction } = require("./src/billing/reconcileActiveSubscriptions");
 const { createVerifyGooglePlayPurchaseFunction } = require("./src/billing/verifyGooglePlayPurchase");
 
 initializeApp();
@@ -12,6 +14,8 @@ const messaging = getMessaging();
 
 exports.requestSpendInsight = createRequestSpendInsightFunction(db);
 exports.verifyGooglePlayPurchase = createVerifyGooglePlayPurchaseFunction(db);
+exports.handlePlayRtdn = createHandlePlayRtdnFunction(db);
+exports.reconcileActiveSubscriptions = createReconcileActiveSubscriptionsFunction(db);
 
 /**
  * Cloud Function: sendPushOnNotificationCreate
