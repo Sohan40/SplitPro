@@ -46,7 +46,9 @@ export function useAiEntitlement(): AiEntitlementState {
   return useMemo(() => {
     const aiEntitlement = user?.entitlement?.ai;
     const expiresAtMs = toMillis(aiEntitlement?.expiresAt ?? null);
-    const statusAllowsAccess = aiEntitlement?.status === 'active' || aiEntitlement?.status === 'grace_period';
+    const statusAllowsAccess = aiEntitlement?.status === 'active'
+      || aiEntitlement?.status === 'grace_period'
+      || aiEntitlement?.status === 'active_until_expiry';
     const isExpired = expiresAtMs !== null && expiresAtMs <= Date.now();
     const isAiEntitled = aiEntitlement?.active === true && statusAllowsAccess && !isExpired;
     const usageRemaining = getUsageRemaining(user?.aiUsage);

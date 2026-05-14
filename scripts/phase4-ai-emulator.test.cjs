@@ -83,7 +83,7 @@ async function callRequestSpendInsight(idToken, data) {
 }
 
 async function seedFirestore(db, users) {
-  const now = Date.UTC(2026, 4, 13, 10, 0, 0);
+  const now = Date.now();
   const expiresAt = Timestamp.fromMillis(now + 24 * 60 * 60 * 1000);
   const updatedAt = Timestamp.fromMillis(now);
 
@@ -201,6 +201,10 @@ function getErrorStatus(call) {
   return call.body.error?.status || call.body.error?.message || '';
 }
 
+function describeCall(call) {
+  return `status=${call.status} body=${JSON.stringify(call.body)}`;
+}
+
 async function main() {
   if (getApps().length === 0) {
     initializeApp({ projectId: PROJECT_ID });
@@ -238,7 +242,7 @@ async function main() {
       feature: 'monthly_summary',
       monthKey: MONTH_KEY,
     });
-    assert(call.status === 200, `Expected success, got ${call.status}`);
+    assert(call.status === 200, `Expected success, got ${describeCall(call)}`);
     const result = getResult(call);
     assert(result.cached === false, 'First response should not be cached');
     assert(result.source === 'openai', `Expected mocked OpenAI path, got ${result.source}`);
@@ -274,7 +278,7 @@ async function main() {
       feature: 'monthly_summary',
       monthKey: MONTH_KEY,
     });
-    assert(call.status === 200, `Expected success, got ${call.status}`);
+    assert(call.status === 200, `Expected success, got ${describeCall(call)}`);
     const result = getResult(call);
     assert(result.cached === true, 'Second response should come from cache');
 

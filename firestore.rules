@@ -195,6 +195,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /subscriptionTokens/{tokenHash} {
+      allow read, write: if false;
+    }
+
+    match /subscriptionEvents/{eventId} {
+      allow read, write: if false;
+    }
+
     match /aiUsageEvents/{eventId} {
       allow read, write: if false;
     }

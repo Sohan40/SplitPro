@@ -95,7 +95,7 @@ android {
         applicationId "com.zyntaillabs.splitpro"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 11
+        versionCode 12
         versionName "1.0.7"
     }
     signingConfigs {

@@ -1,10 +1,14 @@
 /* eslint-env node, es2020 */
 
 const path = require('path');
+const fs = require('fs');
 const { spawnSync } = require('child_process');
 
 const root = path.resolve(__dirname, '..');
 const firebaseCli = path.join(root, 'node_modules', 'firebase-tools', 'lib', 'bin', 'firebase.js');
+const functionsDir = path.join(root, 'functions');
+const envLocalPath = path.join(functionsDir, '.env.local');
+const secretLocalPath = path.join(functionsDir, '.secret.local');
 
 const env = {
   ...process.env,
@@ -27,27 +31,62 @@ env.SPLITPRO_MOCK_OPENAI = 'true';
 env.OPENAI_API_KEY = 'emulator-mock-key';
 env.FUNCTIONS_EMULATOR = 'true';
 env.NODE_ENV = 'test';
+env.SPLITPRO_ALLOW_MANUAL_TEST_ENTITLEMENT = 'true';
 
-const result = spawnSync(
-  process.execPath,
-  [
-    firebaseCli,
-    '--config',
-    'firebase.phase4-emulator.json',
-    'emulators:exec',
-    '--project',
-    'demo-splitpro-phase4-ai',
-    '--only',
-    'auth,firestore,functions',
-    'node scripts/phase4-ai-emulator.test.cjs',
-  ],
-  {
-    cwd: root,
-    env,
-    encoding: 'utf8',
-    timeout: 180000,
-  },
-);
+function readExisting(filePath) {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : null;
+}
+
+function restoreFile(filePath, previousContent) {
+  if (previousContent === null) {
+    fs.rmSync(filePath, { force: true });
+    return;
+  }
+
+  fs.writeFileSync(filePath, previousContent);
+}
+
+const previousEnvLocal = readExisting(envLocalPath);
+const previousSecretLocal = readExisting(secretLocalPath);
+let result;
+
+try {
+  fs.writeFileSync(envLocalPath, [
+    'SPLITPRO_MOCK_OPENAI=true',
+    'SPLITPRO_ALLOW_MANUAL_TEST_ENTITLEMENT=true',
+    'NODE_ENV=test',
+    '',
+  ].join('\n'));
+
+  fs.writeFileSync(secretLocalPath, [
+    'OPENAI_API_KEY=emulator-mock-key',
+    '',
+  ].join('\n'));
+
+  result = spawnSync(
+    process.execPath,
+    [
+      firebaseCli,
+      '--config',
+      'firebase.phase4-emulator.json',
+      'emulators:exec',
+      '--project',
+      'demo-splitpro-phase4-ai',
+      '--only',
+      'auth,firestore,functions',
+      'node scripts/phase4-ai-emulator.test.cjs',
+    ],
+    {
+      cwd: root,
+      env,
+      encoding: 'utf8',
+      timeout: 180000,
+    },
+  );
+} finally {
+  restoreFile(envLocalPath, previousEnvLocal);
+  restoreFile(secretLocalPath, previousSecretLocal);
+}
 
 if (result.stdout) {
   process.stdout.write(result.stdout);

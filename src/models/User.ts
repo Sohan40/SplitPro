@@ -7,10 +7,14 @@ export type AiEntitlementPlan = 'free' | 'ai_monthly' | 'ai_yearly' | 'test';
 export type AiEntitlementStatus =
   | 'inactive'
   | 'active'
+  | 'active_until_expiry'
   | 'expired'
   | 'cancelled'
   | 'grace_period'
   | 'on_hold'
+  | 'paused'
+  | 'pending'
+  | 'unknown'
   | 'revoked';
 
 export type AiEntitlementProvider = 'none' | 'google_play' | 'manual_test';

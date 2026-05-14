@@ -88,6 +88,8 @@ firestore-debug.log
 .env
 .env.*
 !.env.example
+.secret.local
+**/.secret.local
 
 # Build artifacts
 *.apk

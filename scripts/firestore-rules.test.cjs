@@ -128,6 +128,22 @@ async function main() {
     });
 
     await runTest('subscription writes are denied', async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        await setDoc(doc(db, 'subscriptions/alice'), {
+          uid: 'alice',
+          provider: 'google_play',
+          productId: 'splitpro_ai_monthly',
+          purchaseTokenHash: 'hash-1',
+          status: 'active',
+          expiryTime: null,
+          lastVerifiedAt: null,
+          createdAt: 1710000000000,
+          updatedAt: 1710000000000,
+        });
+      });
+
+      await assertFails(getDoc(doc(aliceDb, 'subscriptions/alice')));
       await assertFails(setDoc(doc(aliceDb, 'subscriptions/alice'), {
         uid: 'alice',
         provider: 'manual_test',
@@ -138,6 +154,50 @@ async function main() {
         lastVerifiedAt: null,
         createdAt: 1710000000000,
         updatedAt: 1710000000000,
+      }));
+    });
+
+    await runTest('subscription token writes are denied', async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        await setDoc(doc(db, 'subscriptionTokens/hash-1'), {
+          uid: 'alice',
+          provider: 'google_play',
+          productId: 'splitpro_ai_monthly',
+          purchaseToken: 'server-token',
+          updatedAt: 1710000000000,
+        });
+      });
+
+      await assertFails(getDoc(doc(aliceDb, 'subscriptionTokens/hash-1')));
+      await assertFails(setDoc(doc(aliceDb, 'subscriptionTokens/hash-1'), {
+        uid: 'alice',
+        provider: 'google_play',
+        productId: 'splitpro_ai_monthly',
+        purchaseToken: 'client-token-should-not-write',
+        updatedAt: 1710000000000,
+      }));
+    });
+
+    await runTest('subscription event reads and writes are denied', async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        await setDoc(doc(db, 'subscriptionEvents/event-1'), {
+          provider: 'google_play',
+          uid: 'alice',
+          eventType: 'renewed',
+          purchaseTokenHash: 'hash-1',
+          processedAt: 1710000000000,
+        });
+      });
+
+      await assertFails(getDoc(doc(aliceDb, 'subscriptionEvents/event-1')));
+      await assertFails(setDoc(doc(aliceDb, 'subscriptionEvents/event-2'), {
+        provider: 'google_play',
+        uid: 'alice',
+        eventType: 'renewed',
+        purchaseTokenHash: 'hash-2',
+        processedAt: 1710000000000,
       }));
     });
 
