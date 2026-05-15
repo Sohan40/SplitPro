@@ -8,7 +8,13 @@ import {
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
-import { spacing, borderRadius, shadows, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import {
+  spacing,
+  borderRadius,
+  shadows,
+  type ThemeColors,
+  type ThemeTypography,
+} from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
@@ -18,18 +24,8 @@ import type { Group } from '../../models/Group';
 import type { Expense } from '../../models/Expense';
 import type { GroupDetailScreenProps } from '../../navigation/types';
 import EmptyState from '../../components/EmptyState';
-import GlassCard from '../../components/GlassCard';
+import CategoryIcon from '../../components/CategoryIcon';
 import Icon from 'react-native-vector-icons/Ionicons';
-
-const CATEGORY_ICON_MAP: Record<string, string> = {
-  food: 'restaurant',
-  travel: 'airplane',
-  shopping: 'cart',
-  entertainment: 'film',
-  utilities: 'flash',
-  health: 'medkit',
-  other: 'receipt-outline',
-};
 
 type ExpenseSection = {
   title: string;
@@ -57,16 +53,19 @@ function getExpenseDateLabel(expense: Expense): string {
   return new Intl.DateTimeFormat('en-IN', {
     day: 'numeric',
     month: 'short',
-    year: expenseDate.getFullYear() === today.getFullYear() ? undefined : 'numeric',
+    year:
+      expenseDate.getFullYear() === today.getFullYear() ? undefined : 'numeric',
   }).format(expenseDate);
 }
 
 function groupExpensesByDate(expenses: Expense[]): ExpenseSection[] {
-  const sortedExpenses = [...expenses].sort((a, b) => b.createdAt - a.createdAt);
+  const sortedExpenses = [...expenses].sort(
+    (a, b) => b.createdAt - a.createdAt,
+  );
   const sections: ExpenseSection[] = [];
   const sectionMap = new Map<string, ExpenseSection>();
 
-  sortedExpenses.forEach((expense) => {
+  sortedExpenses.forEach(expense => {
     const key = getExpenseDateKey(expense);
     let section = sectionMap.get(key);
 
@@ -85,19 +84,28 @@ function groupExpensesByDate(expenses: Expense[]): ExpenseSection[] {
   return sections;
 }
 
-export default function GroupDetailScreen({ route, navigation }: GroupDetailScreenProps) {
+export default function GroupDetailScreen({
+  route,
+  navigation,
+}: GroupDetailScreenProps) {
   const { groupId, groupName } = route.params;
   const { user } = useAuth();
   const { currency, formatAmount } = useCurrency();
   const { theme, isDark } = useTheme();
   const { colors, typography } = theme;
-  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+  const styles = useMemo(
+    () => createStyles(colors, typography),
+    [colors, typography],
+  );
   const primaryForeground = isDark ? colors.black : colors.white;
 
   const [group, setGroup] = useState<Group | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
-  const expenseSections = useMemo(() => groupExpensesByDate(expenses), [expenses]);
+  const expenseSections = useMemo(
+    () => groupExpensesByDate(expenses),
+    [expenses],
+  );
 
   useEffect(() => {
     navigation.setOptions({ title: groupName });
@@ -107,14 +115,17 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
     let expensesUnsubscribe: () => void;
 
     try {
-      groupUnsubscribe = groupService.subscribeToGroup(groupId, (groupData) => {
+      groupUnsubscribe = groupService.subscribeToGroup(groupId, groupData => {
         setGroup(groupData);
       });
 
-      expensesUnsubscribe = expenseService.subscribeToGroupExpenses(groupId, (expensesData) => {
-        setExpenses(expensesData);
-        setLoading(false);
-      });
+      expensesUnsubscribe = expenseService.subscribeToGroupExpenses(
+        groupId,
+        expensesData => {
+          setExpenses(expensesData);
+          setLoading(false);
+        },
+      );
     } catch (error) {
       console.error('Failed to subscribe to group details:', error);
       setLoading(false);
@@ -136,7 +147,9 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
 
     if (item.splitType === 'payment') {
       const otherPerson = iPaid ? item.participants[0]?.name : item.paidBy.name;
-      descriptionText = iPaid ? `You paid ${otherPerson}` : `${otherPerson} paid you`;
+      descriptionText = iPaid
+        ? `You paid ${otherPerson}`
+        : `${otherPerson} paid you`;
       amountText = item.amount;
       color = colors.textSecondary;
     } else if (iPaid) {
@@ -153,56 +166,101 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
       amountText = 0;
     }
 
-    const iconName = CATEGORY_ICON_MAP[item.category?.toLowerCase()] || 'receipt-outline';
-
     return (
       <TouchableOpacity
-        onPress={() => navigation.navigate('ExpenseDetail', { groupId, expenseId: item.id })}
+        onPress={() =>
+          navigation.navigate('ExpenseDetail', { groupId, expenseId: item.id })
+        }
         activeOpacity={0.7}
         style={styles.expenseCardWrapper}
       >
-        <GlassCard padding="none">
-          <View style={styles.expenseRow}>
-            <View style={[styles.iconBox, { borderColor: colors.border }]}>
-              <Icon name={iconName} size={20} color={color === colors.textSecondary ? colors.primary : color} />
-            </View>
-            <View style={styles.expenseInfo}>
-              <Text style={styles.expenseDesc} numberOfLines={1}>{item.description}</Text>
-              <Text style={styles.expensePaidBy}>
-                {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid {formatAmount(item.amount, { currency: group?.currency || currency })}
-              </Text>
-            </View>
-            {amountText !== 0 ? (
-              <View style={styles.expenseMyShare}>
-                <Text style={[styles.shareLabel, { color }]}>{descriptionText}</Text>
-                <Text style={[styles.shareAmount, { color }]}>{formatAmount(amountText, { currency: group?.currency || currency })}</Text>
-              </View>
-            ) : (
-              <Text style={styles.notInvolved}>Not involved</Text>
-            )}
+        <View style={styles.expenseRow}>
+          <View style={styles.iconBox}>
+            <CategoryIcon category={item.category || 'others'} size={28} />
           </View>
-        </GlassCard>
+          {item.splitType === 'payment' ? (
+            <>
+              <View style={styles.expenseInfo}>
+                <Text style={styles.expenseDesc} numberOfLines={1}>
+                  {descriptionText}
+                </Text>
+              </View>
+              <View style={styles.expenseMyShare}>
+                <Text style={[styles.shareAmount, { color }]}>
+                  {formatAmount(amountText, {
+                    currency: group?.currency || currency,
+                  })}
+                </Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.expenseInfo}>
+                <Text style={styles.expenseDesc} numberOfLines={1}>
+                  {item.description}
+                </Text>
+                <Text style={styles.expensePaidBy}>
+                  {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid{' '}
+                  {formatAmount(item.amount, {
+                    currency: group?.currency || currency,
+                  })}
+                </Text>
+              </View>
+              {amountText !== 0 ? (
+                <View style={styles.expenseMyShare}>
+                  <Text style={[styles.shareLabel, { color }]}>
+                    {descriptionText}
+                  </Text>
+                  <Text style={[styles.shareAmount, { color }]}>
+                    {formatAmount(amountText, {
+                      currency: group?.currency || currency,
+                    })}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.notInvolved}>Not involved</Text>
+              )}
+            </>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
 
-  const myBalance = user && group ? (group.balances?.[user.id] || 0) : 0;
+  const myBalance = user && group ? group.balances?.[user.id] || 0 : 0;
   const isPositive = myBalance >= 0;
   const groupCurrency = group?.currency || currency;
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={colors.background}
+      />
 
-      {/* Balance Hero Header - wrapped in GlassCard with Skia glow */}
-      <GlassCard padding="none" gradientDir="diagonal" style={styles.header}>
+      {/* Balance Hero Header */}
+      <View style={styles.header}>
         <View style={styles.balanceSummary}>
           <Text style={styles.balanceLabel}>Your balance in this group</Text>
-          <Text style={[styles.balanceAmount, { color: isPositive ? colors.owed : colors.owes }]}>
+          <Text
+            style={[
+              styles.balanceAmount,
+              { color: isPositive ? colors.owed : colors.owes },
+            ]}
+          >
             {formatAmount(myBalance, { currency: groupCurrency })}
           </Text>
-          <Text style={[styles.balanceSubLabel, { color: isPositive ? colors.owed : colors.owes }]}>
-            {myBalance === 0 ? 'All settled up 🎉' : isPositive ? 'People owe you' : 'You owe people'}
+          <Text
+            style={[
+              styles.balanceSubLabel,
+              { color: isPositive ? colors.owed : colors.owes },
+            ]}
+          >
+            {myBalance === 0
+              ? 'All settled up 🎉'
+              : isPositive
+              ? 'People owe you'
+              : 'You owe people'}
           </Text>
         </View>
 
@@ -210,7 +268,9 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => navigation.navigate('SettleUp', { groupId, groupName })}
+            onPress={() =>
+              navigation.navigate('SettleUp', { groupId, groupName })
+            }
           >
             <Icon name="cash-outline" size={20} color={colors.primary} />
             <Text style={styles.actionText}>Settle Up</Text>
@@ -226,13 +286,15 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
           <View style={styles.actionDivider} />
           <TouchableOpacity
             style={styles.actionBtn}
-            onPress={() => navigation.navigate('SpendAnalysis', { groupId, groupName })}
+            onPress={() =>
+              navigation.navigate('SpendAnalysis', { groupId, groupName })
+            }
           >
             <Icon name="stats-chart-outline" size={20} color={colors.primary} />
             <Text style={styles.actionText}>Analysis</Text>
           </TouchableOpacity>
         </View>
-      </GlassCard>
+      </View>
 
       {/* Expenses */}
       <View style={styles.listSection}>
@@ -240,7 +302,10 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
       </View>
 
       {loading ? (
-        <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
+        <ActivityIndicator
+          style={{ marginTop: spacing.xl }}
+          color={colors.primary}
+        />
       ) : (
         <SectionList
           sections={expenseSections}
@@ -265,7 +330,9 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
       {/* Glowing FAB */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => navigation.navigate('AddExpense', { groupId, groupName })}
+        onPress={() =>
+          navigation.navigate('AddExpense', { groupId, groupName })
+        }
         activeOpacity={0.8}
         accessibilityRole="button"
         accessibilityLabel="Add expense"
@@ -276,134 +343,132 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
   );
 }
 
-const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  header: {
-    paddingTop: spacing.xl,
-    paddingBottom: spacing.lg,
-  },
-  balanceSummary: {
-    alignItems: 'center',
-    paddingBottom: spacing.lg,
-    paddingHorizontal: spacing.xl,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    marginBottom: spacing.lg,
-  },
-  balanceLabel: {
-    ...typography.label,
-    marginBottom: spacing.sm,
-  },
-  balanceAmount: {
-    fontSize: 40,
-    fontWeight: '800',
-    letterSpacing: -1.5,
-  },
-  balanceSubLabel: {
-    ...typography.captionBold,
-    marginTop: 4,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: spacing.xl,
-  },
-  actionBtn: {
-    flex: 1,
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  actionDivider: {
-    width: 1,
-    height: '100%',
-    backgroundColor: colors.border,
-  },
-  actionText: {
-    ...typography.small,
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  listSection: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
-  },
-  sectionTitle: {
-    ...typography.heading3,
-  },
-  listContent: {
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.huge * 2,
-    flexGrow: 1,
-    paddingTop: spacing.sm,
-  },
-  dateHeader: {
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  dateHeaderText: {
-    ...typography.label,
-    color: colors.textSecondary,
-  },
-  expenseCardWrapper: {
-    marginBottom: spacing.md,
-  },
-  expenseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.lg,
-  },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.surfaceContainerHighest,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  expenseInfo: {
-    flex: 1,
-  },
-  expenseDesc: {
-    ...typography.bodyBold,
-  },
-  expensePaidBy: {
-    ...typography.small,
-    marginTop: 2,
-  },
-  expenseMyShare: {
-    alignItems: 'flex-end',
-    marginLeft: spacing.sm,
-  },
-  shareLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    marginBottom: 2,
-  },
-  shareAmount: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  notInvolved: {
-    ...typography.small,
-    marginLeft: spacing.sm,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: spacing.xl,
-    right: spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 58,
-    width: 58,
-    borderRadius: 29,
-    backgroundColor: colors.primary,
-    ...shadows.lg,
-  },
-});
+const createStyles = (colors: ThemeColors, typography: ThemeTypography) =>
+  StyleSheet.create({
+    container: {
+      backgroundColor: colors.background,
+      flex: 1,
+    },
+    header: {
+      paddingTop: spacing.xl,
+      paddingBottom: spacing.lg,
+    },
+    balanceSummary: {
+      alignItems: 'center',
+      paddingBottom: spacing.lg,
+      paddingHorizontal: spacing.xl,
+      marginBottom: spacing.md,
+    },
+    balanceLabel: {
+      ...typography.captionBold,
+      color: colors.textSecondary,
+      marginBottom: spacing.xs,
+    },
+    balanceAmount: {
+      ...typography.amountLarge,
+    },
+    balanceSubLabel: {
+      ...typography.captionBold,
+      marginTop: 4,
+    },
+    actionRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: colors.borderLight,
+    },
+    actionBtn: {
+      flex: 1,
+      alignItems: 'center',
+      gap: spacing.xs,
+    },
+    actionDivider: {
+      width: 1,
+      height: '100%',
+      backgroundColor: colors.borderLight,
+    },
+    actionText: {
+      ...typography.small,
+      color: colors.primary,
+      fontWeight: '600',
+    },
+    listSection: {
+      paddingHorizontal: spacing.xl,
+      paddingTop: spacing.lg,
+      paddingBottom: spacing.sm,
+    },
+    sectionTitle: {
+      ...typography.heading3,
+    },
+    listContent: {
+      paddingHorizontal: spacing.xl,
+      paddingBottom: spacing.huge * 2,
+      flexGrow: 1,
+      paddingTop: spacing.sm,
+    },
+    dateHeader: {
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.sm,
+    },
+    dateHeaderText: {
+      ...typography.label,
+      color: colors.textSecondary,
+    },
+    expenseCardWrapper: {
+      marginBottom: spacing.md,
+    },
+    expenseRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.surfaceContainer,
+      borderRadius: borderRadius.lg,
+      borderWidth: 1,
+      borderColor: colors.borderLight,
+      padding: spacing.lg,
+    },
+    iconBox: {
+      marginRight: spacing.md,
+    },
+    expenseInfo: {
+      flex: 1,
+    },
+    expenseDesc: {
+      ...typography.bodyBold,
+    },
+    expensePaidBy: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    expenseMyShare: {
+      alignItems: 'flex-end',
+      marginLeft: spacing.sm,
+    },
+    shareLabel: {
+      ...typography.caption,
+      textTransform: 'uppercase',
+      marginBottom: 2,
+    },
+    shareAmount: {
+      ...typography.bodyBold,
+    },
+    notInvolved: {
+      ...typography.caption,
+      color: colors.textSecondary,
+      marginLeft: spacing.sm,
+    },
+    fab: {
+      position: 'absolute',
+      bottom: spacing.xl,
+      right: spacing.xl,
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: 60,
+      width: 60,
+      borderRadius: 30,
+      backgroundColor: colors.primary,
+      ...shadows.lg,
+    },
+  });

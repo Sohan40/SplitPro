@@ -95,20 +95,8 @@ export const userService = {
       batch.update(groupDoc.ref, { members: updatedMembers, updatedAt: Date.now() });
     });
 
-    // 3. Update all Expenses where user is the payer
-    const expensesPaidSnapshot = await db.collection('expenses')
-      .where('paidBy.uid', '==', id)
-      .get();
-
-    expensesPaidSnapshot.forEach(expenseDoc => {
-      batch.update(expenseDoc.ref, { 'paidBy.name': name, updatedAt: Date.now() });
-    });
-
-    // 4. Update all Expenses where user is a participant
-    // Note: Firestore doesn't support array-contains for nested objects easily, 
-    // so we search by groupId from the groups we already found and update locally.
-    // However, a simpler way since it's an MVP is to just search all expenses 
-    // in those groups.
+    // 3. Update all Expenses where user is a payer or participant
+    // Firestore security rules require querying expenses by groupId.
     for (const groupDoc of groupsSnapshot.docs) {
       const expensesInGroup = await db.collection('expenses')
         .where('groupId', '==', groupDoc.id)
@@ -117,16 +105,31 @@ export const userService = {
       expensesInGroup.forEach(expenseDoc => {
         const expenseData = expenseDoc.data();
         let changed = false;
+        const updateData: Record<string, any> = {};
+
+        // Check if user is the payer
+        if (expenseData.paidBy?.uid === id && expenseData.paidBy?.name !== name) {
+          changed = true;
+          updateData['paidBy.name'] = name;
+        }
+
+        // Check if user is a participant
+        let participantsChanged = false;
         const updatedParticipants = expenseData.participants.map((p: any) => {
-          if (p.uid === id) {
+          if (p.uid === id && p.name !== name) {
+            participantsChanged = true;
             changed = true;
             return { ...p, name };
           }
           return p;
         });
-        
+
         if (changed) {
-          batch.update(expenseDoc.ref, { participants: updatedParticipants, updatedAt: Date.now() });
+          if (participantsChanged) {
+             updateData.participants = updatedParticipants;
+          }
+          updateData.updatedAt = Date.now();
+          batch.update(expenseDoc.ref, updateData);
         }
       });
     }

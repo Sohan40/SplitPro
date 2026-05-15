@@ -34,7 +34,7 @@ import {
   calculateSharesSplit,
 } from '../../utils/splitCalculator';
 import Button from '../../components/Button';
-import GlassCard from '../../components/GlassCard';
+
 import Avatar from '../../components/Avatar';
 import CategoryIcon from '../../components/CategoryIcon';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -52,6 +52,25 @@ const defaultMemberInput: MemberInputState = {
   percent: '0',
   shares: '0',
 };
+
+const CATEGORY_OPTIONS: Array<{ key: Exclude<Category, 'payment'>; label: string }> = [
+  { key: 'food', label: 'Food' },
+  { key: 'groceries', label: 'Groceries' },
+  { key: 'transport', label: 'Transport' },
+  { key: 'rent', label: 'Rent' },
+  { key: 'utilities', label: 'Utilities' },
+  { key: 'entertainment', label: 'Entertainment' },
+  { key: 'shopping', label: 'Shopping' },
+  { key: 'health', label: 'Health' },
+  { key: 'travel', label: 'Travel' },
+  { key: 'education', label: 'Education' },
+  { key: 'subscriptions', label: 'Subscriptions' },
+  { key: 'gifts', label: 'Gifts' },
+  { key: 'pets', label: 'Pets' },
+  { key: 'fitness', label: 'Fitness' },
+  { key: 'sports', label: 'Sports' },
+  { key: 'others', label: 'Others' },
+];
 
 export default function AddExpenseScreen({
   route,
@@ -106,6 +125,9 @@ export default function AddExpenseScreen({
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<Category>('others');
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
+  const [paidByDropdownOpen, setPaidByDropdownOpen] = useState(false);
   const [splitType, setSplitType] = useState<SplitType>('equal');
   const [paidByUid, setPaidByUid] = useState<string>('');
 
@@ -195,6 +217,23 @@ export default function AddExpenseScreen({
 
   const toggleIncluded = (uid: string) => {
     updateMemberInput(uid, 'included', !memberInputs[uid]?.included);
+  };
+
+  const setAllParticipantsIncluded = (included: boolean) => {
+    setCategoryDropdownOpen(false);
+    setPaidByDropdownOpen(false);
+    setMemberInputs((prev) => {
+      if (!group) return prev;
+
+      return group.members.reduce<Record<string, MemberInputState>>((next, member) => {
+        const current = prev[member.uid] || defaultMemberInput;
+        next[member.uid] = {
+          ...current,
+          included,
+        };
+        return next;
+      }, {});
+    });
   };
 
   const adjustShares = (uid: string, delta: number) => {
@@ -417,20 +456,17 @@ export default function AddExpenseScreen({
   const previewMap = buildPreviewMap();
   const activeCurrency = group.currency || currency;
   const activeCurrencySymbol = getCurrencySymbol(activeCurrency);
-  const categoryList: Category[] = [
-    'food',
-    'groceries',
-    'transport',
-    'rent',
-    'utilities',
-    'entertainment',
-    'others',
-  ];
-  const splitTypes: { key: SplitType; label: string }[] = [
-    { key: 'equal', label: '=' },
-    { key: 'custom', label: activeCurrencySymbol },
-    { key: 'percentage', label: '%' },
-    { key: 'shares', label: 'Shares' },
+  const selectedCategoryOption =
+    CATEGORY_OPTIONS.find(option => option.key === category) || CATEGORY_OPTIONS[CATEGORY_OPTIONS.length - 1];
+
+  const includedCount = group.members.filter(member => memberInputs[member.uid]?.included).length;
+  const allMembersIncluded = includedCount === group.members.length;
+  const selectedPayer = group.members.find(member => member.uid === paidByUid) || group.members[0];
+  const splitTypes: { key: SplitType; label: string; helper: string }[] = [
+    { key: 'equal', label: 'Equal', helper: '=' },
+    { key: 'custom', label: 'Exact', helper: activeCurrencySymbol },
+    { key: 'percentage', label: 'Percent', helper: '%' },
+    { key: 'shares', label: 'Shares', helper: '1x' },
   ];
 
   return (
@@ -442,268 +478,329 @@ export default function AddExpenseScreen({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
       >
-        {/* Description & Amount */}
-        <GlassCard style={styles.section} padding="lg" gradientDir="diagonal">
+        {/* ── Description ── */}
+        <Text style={styles.sectionLabel}>DESCRIPTION</Text>
+        <View style={styles.inputRow}>
+          <View style={styles.inputIconBox}>
+            <Icon name="document-text-outline" size={19} color={colors.textTertiary} />
+          </View>
           <TextInput
-            style={styles.descInput}
+            style={styles.inputField}
             placeholder="What was this for?"
             placeholderTextColor={colors.textTertiary}
             value={description}
             onChangeText={setDescription}
+            onFocus={() => {
+              setCategoryDropdownOpen(false);
+              setPaidByDropdownOpen(false);
+            }}
           />
-          <View style={styles.amountContainer}>
-            <Text style={styles.currencySymbol}>{activeCurrencySymbol}</Text>
-            <TextInput
-              style={styles.amountInput}
-              placeholder="0.00"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="decimal-pad"
-              value={amount}
-              onChangeText={setAmount}
-            />
+        </View>
+
+        {/* ── Amount ── */}
+        <Text style={styles.sectionLabel}>AMOUNT</Text>
+        <View style={styles.amountRow}>
+          <Text style={styles.amountSymbol}>{activeCurrencySymbol}</Text>
+          <TextInput
+            style={styles.amountInput}
+            placeholder="0.00"
+            placeholderTextColor={colors.textTertiary}
+            keyboardType="decimal-pad"
+            value={amount}
+            onChangeText={setAmount}
+            onFocus={() => {
+              setCategoryDropdownOpen(false);
+              setPaidByDropdownOpen(false);
+            }}
+          />
+        </View>
+
+        {/* ── Category ── */}
+        <Text style={styles.sectionLabel}>CATEGORY</Text>
+        <TouchableOpacity
+          activeOpacity={0.78}
+          onPress={() => {
+            setCategoryDropdownOpen(v => {
+              if (!v) setCategorySearchQuery('');
+              return !v;
+            });
+            setPaidByDropdownOpen(false);
+          }}
+          style={styles.inputRow}
+        >
+          <CategoryIcon category={selectedCategoryOption.key} size={32} />
+          <View style={styles.payerCopy}>
+            <Text style={styles.payerName} numberOfLines={1}>
+              {selectedCategoryOption.label}
+            </Text>
           </View>
-        </GlassCard>
+          <Icon
+            name={categoryDropdownOpen ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textTertiary}
+          />
+        </TouchableOpacity>
 
-        {/* Category selector */}
-        <Text style={styles.sectionTitle}>Category</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryScroll}
-        >
-          {categoryList.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              onPress={() => setCategory(cat)}
-              style={[
-                styles.categoryWrapper,
-                category === cat && styles.categorySelected,
-              ]}
-            >
-              <CategoryIcon category={cat} size={32} />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {categoryDropdownOpen ? (
+          <View style={styles.dropdownMenu}>
+            <View style={styles.dropdownSearchContainer}>
+              <Icon name="search" size={16} color={colors.textTertiary} style={styles.dropdownSearchIcon} />
+              <TextInput
+                style={styles.dropdownSearchInput}
+                placeholder="Search category..."
+                placeholderTextColor={colors.textTertiary}
+                value={categorySearchQuery}
+                onChangeText={setCategorySearchQuery}
+              />
+            </View>
+            <ScrollView style={styles.dropdownScroll} nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
+              {CATEGORY_OPTIONS.filter(opt => opt.label.toLowerCase().includes(categorySearchQuery.toLowerCase())).map((option, index, arr) => {
+                const isSelected = category === option.key;
+                const isLast = index === arr.length - 1;
+                return (
+                  <TouchableOpacity
+                    activeOpacity={0.75}
+                    key={option.key}
+                    onPress={() => {
+                      setCategory(option.key);
+                      setCategoryDropdownOpen(false);
+                    }}
+                    style={[
+                      styles.dropdownItem,
+                      !isLast && styles.dropdownDivider,
+                      isSelected && styles.dropdownItemSelected,
+                    ]}
+                  >
+                    <CategoryIcon category={option.key} size={28} />
+                    <Text
+                      style={[
+                        styles.dropdownItemText,
+                        isSelected && styles.dropdownItemTextSelected,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {option.label}
+                    </Text>
+                    {isSelected ? (
+                      <Icon name="checkmark-circle" size={18} color={colors.primary} />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
 
-        {/* Paid‑by selector */}
-        <Text style={styles.sectionTitle}>Paid By</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.payerScroll}
+        {/* ── Paid by ── */}
+        <Text style={styles.sectionLabel}>PAID BY</Text>
+        <TouchableOpacity
+          activeOpacity={0.78}
+          onPress={() => {
+            setPaidByDropdownOpen(v => !v);
+            setCategoryDropdownOpen(false);
+          }}
+          style={styles.inputRow}
         >
-          {group.members.map((member) => (
-            <TouchableOpacity
-              key={member.uid}
-              onPress={() => setPaidByUid(member.uid)}
-              style={[
-                styles.payerCard,
-                paidByUid === member.uid && styles.payerSelected,
-              ]}
-            >
-              <View
-                style={[
-                  styles.avatarBorder,
-                  paidByUid === member.uid && styles.avatarBorderSelected,
-                ]}
+          <Avatar name={selectedPayer?.name || 'User'} size={32} />
+          <View style={styles.payerCopy}>
+            <Text style={styles.payerName} numberOfLines={1}>
+              {selectedPayer?.uid === user?.id ? 'You' : selectedPayer?.name || 'Select payer'}
+            </Text>
+          </View>
+          <Icon
+            name={paidByDropdownOpen ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textTertiary}
+          />
+        </TouchableOpacity>
+
+        {paidByDropdownOpen ? (
+          <View style={styles.dropdownMenu}>
+            {group.members.map((member, index) => {
+              const isSelected = paidByUid === member.uid;
+              const isLast = index === group.members.length - 1;
+              return (
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  key={member.uid}
+                  onPress={() => {
+                    setPaidByUid(member.uid);
+                    setPaidByDropdownOpen(false);
+                  }}
+                  style={[
+                    styles.dropdownItem,
+                    !isLast && styles.dropdownDivider,
+                    isSelected && styles.dropdownItemSelected,
+                  ]}
+                >
+                  <Avatar name={member.name} size={28} />
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      isSelected && styles.dropdownItemTextSelected,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {member.uid === user?.id ? 'You' : member.name}
+                  </Text>
+                  {isSelected ? (
+                    <Icon name="checkmark-circle" size={18} color={colors.primary} />
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
+
+        {/* ── Split method ── */}
+        <Text style={[styles.sectionLabel, { marginTop: spacing.xl }]}>SPLIT METHOD</Text>
+        <View style={styles.splitRow}>
+          {splitTypes.map((type) => {
+            const isSelected = splitType === type.key;
+            return (
+              <TouchableOpacity
+                activeOpacity={0.78}
+                key={type.key}
+                onPress={() => {
+                  setSplitType(type.key);
+                  setCategoryDropdownOpen(false);
+                  setPaidByDropdownOpen(false);
+                }}
+                style={[styles.splitChip, isSelected && styles.splitChipSelected]}
               >
-                <Avatar name={member.name} size={50} />
-                {paidByUid === member.uid && (
-                  <View style={styles.payerCheckmark}>
-                    <Icon
-                      name="checkmark-circle"
-                      size={20}
-                      color={colors.primary}
+                <Text style={[styles.splitChipHelper, isSelected && styles.splitChipHelperSelected]}>
+                  {type.helper}
+                </Text>
+                <Text style={[styles.splitChipText, isSelected && styles.splitChipTextSelected]}>
+                  {type.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* ── Participants ── */}
+        <View style={styles.participantsHeader}>
+          <Text style={styles.sectionLabel}>SPLIT WITH</Text>
+          <View style={styles.participantActions}>
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>{includedCount}</Text>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.78}
+              onPress={() => setAllParticipantsIncluded(!allMembersIncluded)}
+              style={styles.selectAllPill}
+            >
+              <Text style={styles.selectAllPillText}>
+                {allMembersIncluded ? 'Deselect all' : 'Select all'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {group.members.map((member, index) => {
+          const input = memberInputs[member.uid] || defaultMemberInput;
+          const shares = parseInt(input?.shares || '0', 10);
+          const isIncluded = input?.included;
+          const previewAmount = previewMap[member.uid] || 0;
+          const isLast = index === group.members.length - 1;
+
+          return (
+            <View key={member.uid} style={[styles.memberRow, isLast && styles.memberRowLast]}>
+              <TouchableOpacity
+                activeOpacity={0.78}
+                onPress={() => {
+                  toggleIncluded(member.uid);
+                  setCategoryDropdownOpen(false);
+                  setPaidByDropdownOpen(false);
+                }}
+                style={[styles.checkbox, isIncluded && styles.checkboxChecked]}
+              >
+                {isIncluded ? <Icon name="checkmark" size={14} color={primaryForeground} /> : null}
+              </TouchableOpacity>
+
+              <View style={styles.memberInfo}>
+                <Avatar name={member.name} size={32} />
+                <View style={styles.memberMeta}>
+                  <Text style={styles.memberName} numberOfLines={1}>
+                    {member.uid === user?.id ? 'You' : member.name}
+                  </Text>
+                  <Text style={[styles.memberPreview, !isIncluded && styles.memberPreviewMuted]}>
+                    {formatAmount(previewAmount, { currency: activeCurrency })}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.memberControls}>
+                {splitType === 'equal' && (
+                  <View style={[styles.controlPill, !isIncluded && styles.controlDisabled]}>
+                    <Text style={styles.controlPillText}>Equal</Text>
+                  </View>
+                )}
+                {splitType === 'custom' && (
+                  <TextInput
+                    style={[styles.controlInput, !isIncluded && styles.controlDisabled]}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor={colors.textTertiary}
+                    value={input.customAmount}
+                    onChangeText={(v) => updateMemberInput(member.uid, 'customAmount', v)}
+                    onFocus={() => { setCategoryDropdownOpen(false); setPaidByDropdownOpen(false); }}
+                    editable={isIncluded}
+                  />
+                )}
+                {splitType === 'percentage' && (
+                  <View style={styles.controlWithSuffix}>
+                    <TextInput
+                      style={[styles.controlInput, styles.controlInputSuffix, !isIncluded && styles.controlDisabled]}
+                      keyboardType="decimal-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textTertiary}
+                      value={input.percent}
+                      onChangeText={(v) => updateMemberInput(member.uid, 'percent', v)}
+                      onFocus={() => { setCategoryDropdownOpen(false); setPaidByDropdownOpen(false); }}
+                      editable={isIncluded}
                     />
+                    <Text style={styles.suffixText}>%</Text>
+                  </View>
+                )}
+                {splitType === 'shares' && (
+                  <View style={styles.stepper}>
+                    <TouchableOpacity
+                      activeOpacity={0.78}
+                      style={[styles.stepperBtn, (!isIncluded || shares === 0) && styles.stepperBtnDisabled]}
+                      onPress={() => adjustShares(member.uid, -1)}
+                      disabled={!isIncluded || shares === 0}
+                    >
+                      <Icon name="remove" size={16} color={!isIncluded || shares === 0 ? colors.textTertiary : colors.primary} />
+                    </TouchableOpacity>
+                    <View style={[styles.stepperValue, !isIncluded && styles.controlDisabled]}>
+                      <Text style={styles.stepperValueText}>{shares}</Text>
+                    </View>
+                    <TouchableOpacity
+                      activeOpacity={0.78}
+                      style={[styles.stepperBtn, !isIncluded && styles.stepperBtnDisabled]}
+                      onPress={() => adjustShares(member.uid, 1)}
+                      disabled={!isIncluded}
+                    >
+                      <Icon name="add" size={16} color={isIncluded ? colors.primary : colors.textTertiary} />
+                    </TouchableOpacity>
                   </View>
                 )}
               </View>
-              <Text
-                style={[
-                  styles.payerName,
-                  paidByUid === member.uid && styles.payerNameSelected,
-                ]}
-                numberOfLines={1}
-              >
-                {member.uid === user?.id ? 'You' : member.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Split type selector */}
-        <Text style={styles.sectionTitle}>Split Options</Text>
-        <View style={styles.splitOptionsRow}>
-          {splitTypes.map((type) => (
-            <TouchableOpacity
-              key={type.key}
-              onPress={() => setSplitType(type.key)}
-              style={[
-                styles.splitOption,
-                splitType === type.key && styles.splitOptionSelected,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.splitOptionText,
-                  splitType === type.key && styles.splitOptionTextSelected,
-                ]}
-              >
-                {type.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Participants list */}
-        <GlassCard style={styles.participantsCard} padding="md">
-          {group.members.map((member) => {
-            const input = memberInputs[member.uid] || defaultMemberInput;
-            const shares = parseInt(input?.shares || '0', 10);
-            const isIncluded = input?.included;
-            const previewAmount = previewMap[member.uid] || 0;
-
-            return (
-              <View key={member.uid} style={styles.participantRow}>
-                {/* Checkbox */}
-                <TouchableOpacity
-                  onPress={() => toggleIncluded(member.uid)}
-                  style={[
-                    styles.checkbox,
-                    isIncluded && styles.checkboxChecked,
-                  ]}
-                >
-                  {isIncluded && (
-                    <Text style={styles.checkmark}>{'\u2713'}</Text>
-                  )}
-                </TouchableOpacity>
-
-                {/* Avatar & name */}
-                <View style={styles.participantInfo}>
-                  <Avatar name={member.name} size={32} />
-                  <View style={styles.participantMeta}>
-                    <Text
-                      style={styles.participantName}
-                      numberOfLines={1}
-                    >
-                      {member.name}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.previewText,
-                        !isIncluded && styles.previewTextMuted,
-                      ]}
-                    >
-                      Split: {formatAmount(previewAmount, { currency: activeCurrency })}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Input controls based on split type */}
-                <View style={styles.participantControls}>
-                  {splitType === 'custom' && (
-                    <TextInput
-                      style={[
-                        styles.numInput,
-                        !isIncluded && styles.inputDisabled,
-                      ]}
-                      keyboardType="decimal-pad"
-                      placeholder="0.00"
-                      value={input.customAmount}
-                      onChangeText={(value) =>
-                        updateMemberInput(member.uid, 'customAmount', value)
-                      }
-                      editable={isIncluded}
-                    />
-                  )}
-
-                  {splitType === 'percentage' && (
-                    <View style={styles.inputWithSuffix}>
-                      <TextInput
-                        style={[
-                          styles.numInput,
-                          styles.numInputWithSuffix,
-                          !isIncluded && styles.inputDisabled,
-                        ]}
-                        keyboardType="decimal-pad"
-                        placeholder="0"
-                        value={input.percent}
-                        onChangeText={(value) =>
-                          updateMemberInput(member.uid, 'percent', value)
-                        }
-                        editable={isIncluded}
-                      />
-                      <Text style={styles.suffix}>%</Text>
-                    </View>
-                  )}
-
-                  {splitType === 'shares' && (
-                    <View style={styles.shareStepper}>
-                      <TouchableOpacity
-                        style={[
-                          styles.shareButton,
-                          (!isIncluded || shares === 0) &&
-                            styles.shareButtonDisabled,
-                        ]}
-                        onPress={() => adjustShares(member.uid, -1)}
-                        disabled={!isIncluded || shares === 0}
-                      >
-                        <Icon
-                          name="remove"
-                          size={18}
-                          color={
-                            !isIncluded || shares === 0
-                              ? colors.textTertiary
-                              : colors.primary
-                          }
-                        />
-                      </TouchableOpacity>
-                      <View
-                        style={[
-                          styles.shareValue,
-                          !isIncluded && styles.inputDisabled,
-                        ]}
-                      >
-                        <Text style={styles.shareValueText}>{shares}</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={[
-                          styles.shareButton,
-                          !isIncluded && styles.shareButtonDisabled,
-                        ]}
-                        onPress={() => adjustShares(member.uid, 1)}
-                        disabled={!isIncluded}
-                      >
-                        <Icon
-                          name="add"
-                          size={18}
-                          color={isIncluded ? colors.primary : colors.textTertiary}
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              </View>
-            );
-          })}
-        </GlassCard>
+            </View>
+          );
+        })}
       </ScrollView>
 
-      {/* Save button – sticks to the bottom */}
       <View style={styles.footer}>
-        <Button
-          title="Save Expense"
-          onPress={handleSave}
-          size="lg"
-          loading={saving}
-        />
+        <Button title="Save Expense" onPress={handleSave} size="lg" loading={saving} />
       </View>
     </Animated.View>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Styles – refined for a cleaner, more spaced‑out aesthetic
+// Styles – clean, auth-screen-inspired aesthetic
 // ---------------------------------------------------------------------------
 const createStyles = (
   colors: ThemeColors,
@@ -711,136 +808,215 @@ const createStyles = (
   primaryForeground: string,
 ) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  scrollView: { flex: 1 },
-  content: { padding: spacing.xl, paddingBottom: spacing.xl },
-  section: { marginBottom: spacing.xl },
-  descInput: {
-    fontSize: 18,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.md,
-    color: colors.textPrimary,
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
   },
-  amountContainer: { flexDirection: 'row', alignItems: 'center' },
-  currencySymbol: {
-    fontSize: 32,
-    fontWeight: 'bold',
+  scrollView: { flex: 1 },
+  content: {
+    paddingHorizontal: 24,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.huge,
+  },
+  sectionLabel: {
+    ...typography.label,
+    marginBottom: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  inputRow: {
+    minHeight: 56,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerHigh,
+    paddingHorizontal: spacing.md,
+    overflow: 'hidden',
+  },
+  inputIconBox: {
+    width: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inputField: {
+    flex: 1,
+    minHeight: 56,
+    fontSize: 15,
+    color: colors.textPrimary,
+    paddingVertical: 0,
+    paddingRight: spacing.md,
+  },
+  amountRow: {
+    minHeight: 72,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerHigh,
+    paddingHorizontal: spacing.lg,
+  },
+  amountSymbol: {
     color: colors.primary,
+    fontSize: 28,
+    fontWeight: '800',
     marginRight: spacing.sm,
   },
   amountInput: {
     flex: 1,
-    fontSize: 36,
-    fontWeight: 'bold',
     color: colors.textPrimary,
+    fontSize: 34,
+    fontWeight: '800',
+    paddingVertical: 0,
   },
-  sectionTitle: {
-    ...typography.bodyBold,
-    marginBottom: spacing.md,
-    color: colors.textSecondary,
-  },
-  categoryScroll: { flexDirection: 'row', marginBottom: spacing.xl },
-  categoryWrapper: {
-    padding: spacing.sm,
-    borderRadius: borderRadius.md,
-    marginRight: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
+
+  payerCopy: { flex: 1, marginLeft: spacing.md },
+  payerName: { ...typography.bodyBold },
+  dropdownMenu: {
     backgroundColor: colors.surfaceContainer,
-  },
-  categorySelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primaryLight,
-  },
-  payerScroll: { flexDirection: 'row', marginBottom: spacing.xl },
-  payerCard: {
-    alignItems: 'center',
-    marginRight: spacing.lg,
-    width: 64,
-  },
-  payerSelected: {},
-  avatarBorder: {
-    padding: 2,
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  avatarBorderSelected: { borderColor: colors.primary },
-  payerCheckmark: {
-    position: 'absolute',
-    bottom: -4,
-    right: -4,
-    backgroundColor: colors.surface,
-    borderRadius: 10,
-  },
-  payerName: {
-    ...typography.small,
-    marginTop: spacing.xs,
-    textAlign: 'center',
-    color: colors.textSecondary,
-  },
-  payerNameSelected: { color: colors.primary, fontWeight: 'bold' },
-  splitOptionsRow: {
-    flexDirection: 'row',
-    marginBottom: spacing.lg,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: borderRadius.md,
-    padding: 4,
+    borderRadius: 14,
+    marginTop: spacing.sm,
+    overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
-  splitOption: {
+  dropdownSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    height: 48,
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  dropdownSearchIcon: {
+    marginRight: spacing.sm,
+  },
+  dropdownSearchInput: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 14,
+    height: 48,
+    paddingVertical: 0,
+  },
+  dropdownScroll: {
+    maxHeight: 153,
+  },
+  dropdownItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 50,
+    paddingHorizontal: spacing.md,
+    gap: spacing.md,
+  },
+  dropdownDivider: {
+    borderBottomColor: colors.borderLight,
+    borderBottomWidth: 1,
+  },
+  dropdownItemSelected: { backgroundColor: colors.primaryLight },
+  dropdownItemText: { ...typography.body, flex: 1 },
+  dropdownItemTextSelected: { color: colors.primary, fontWeight: '600' },
+  splitRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 14,
+    padding: 4,
+  },
+  splitChip: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.sm,
+    justifyContent: 'center',
+    minHeight: 52,
+    borderRadius: 12,
+    paddingVertical: spacing.xs,
   },
-  splitOptionSelected: { backgroundColor: colors.primary },
-  splitOptionText: {
-    ...typography.bodyBold,
+  splitChipSelected: { backgroundColor: colors.primary },
+  splitChipHelper: {
+    color: colors.textTertiary,
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 1,
+  },
+  splitChipHelperSelected: { color: primaryForeground },
+  splitChipText: {
+    fontSize: 11,
+    fontWeight: '700',
     color: colors.textSecondary,
   },
-  splitOptionTextSelected: { color: primaryForeground },
-  participantsCard: { marginBottom: spacing.xxxl },
-  participantRow: {
+  splitChipTextSelected: { color: primaryForeground },
+  participantsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+    marginTop: spacing.lg,
+  },
+  participantActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  countBadge: {
+    alignItems: 'center',
+    backgroundColor: colors.primaryLight,
+    borderRadius: borderRadius.full,
+    height: 28,
+    justifyContent: 'center',
+    minWidth: 28,
+    paddingHorizontal: spacing.sm,
+  },
+  countBadgeText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  selectAllPill: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: borderRadius.full,
+    height: 28,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  selectAllPillText: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 64,
     paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,
   },
-  participantInfo: {
+  memberRowLast: { borderBottomWidth: 0 },
+  memberInfo: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: spacing.xs,
+    minWidth: 0,
   },
-  participantMeta: { marginLeft: spacing.sm, flex: 1 },
-  participantName: { ...typography.body, fontSize: 13 },
-  previewText: {
-    ...typography.small,
-    color: colors.primary,
-    marginTop: 2,
-    fontSize: 11,
-  },
-  previewTextMuted: { color: colors.textTertiary },
-  participantControls: {
+  memberMeta: { marginLeft: spacing.sm, flex: 1 },
+  memberName: { ...typography.body, fontSize: 14 },
+  memberPreview: { fontSize: 11, color: colors.primary, marginTop: 1 },
+  memberPreviewMuted: { color: colors.textTertiary },
+  memberControls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: spacing.xs,
     flexShrink: 0,
-    maxWidth: 120,
+    height: 40,
+    width: 110,
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    borderWidth: 2,
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surfaceContainerHigh,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.sm,
@@ -849,60 +1025,71 @@ const createStyles = (
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  checkmark: { color: colors.white, fontWeight: 'bold' },
-  numInput: {
-    flex: 1,
-    height: 40,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    borderRadius: borderRadius.sm,
+  controlPill: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 10,
+    height: 38,
+    justifyContent: 'center',
+    width: 110,
+  },
+  controlPillText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  controlInput: {
+    height: 38,
+    width: 110,
+    backgroundColor: colors.surfaceContainerHigh,
+    borderRadius: 10,
     textAlign: 'right',
     paddingHorizontal: spacing.sm,
     color: colors.textPrimary,
+    fontSize: 14,
   },
-  numInputWithSuffix: { paddingRight: 24 },
-  inputDisabled: { opacity: 0.5 },
-  inputWithSuffix: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  suffix: {
+  controlInputSuffix: { paddingRight: 22 },
+  controlDisabled: { opacity: 0.45 },
+  controlWithSuffix: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    width: 110,
+  },
+  suffixText: {
     position: 'absolute',
     right: spacing.sm,
     color: colors.textSecondary,
     fontWeight: 'bold',
+    fontSize: 13,
   },
-  shareStepper: {
+  stepper: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: spacing.xs,
-    flex: 1,
+    width: 110,
   },
-  shareButton: {
+  stepperBtn: {
     width: 28,
     height: 28,
     borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.surfaceAlt,
+    backgroundColor: colors.surfaceContainerHigh,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shareButtonDisabled: {
-    backgroundColor: colors.surfaceAlt,
-    borderColor: colors.borderLight,
-  },
-  shareValue: {
-    minWidth: 32,
+  stepperBtnDisabled: { borderColor: colors.borderLight },
+  stepperValue: {
+    minWidth: 30,
     height: 28,
-    borderRadius: borderRadius.md,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceContainerHigh,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.xs,
   },
-  shareValueText: { ...typography.bodyBold },
+  stepperValueText: { ...typography.bodyBold, fontSize: 14 },
   footer: {
     padding: spacing.lg,
     paddingBottom: spacing.sm,
@@ -911,3 +1098,4 @@ const createStyles = (
     borderTopColor: colors.borderLight,
   },
 });
+

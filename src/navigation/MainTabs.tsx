@@ -51,13 +51,7 @@ export default function MainTabs() {
       <Tab.Screen
         name="Groups"
         component={GroupStack}
-        options={{ headerShown: false }}
-        listeners={({ navigation }) => ({
-          tabPress: () => {
-            // Force reset to the root of the Groups stack when the tab is pressed
-            navigation.navigate('Groups', { screen: 'GroupList' });
-          },
-        })}
+        options={{ headerShown: false, popToTopOnBlur: true }}
       />
       <Tab.Screen name="Activity" component={ActivityScreen} />
       <Tab.Screen

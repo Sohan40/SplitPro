@@ -7,11 +7,15 @@ const {
   initializeTestEnvironment,
 } = require('@firebase/rules-unit-testing');
 const {
+  collection,
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
+  query,
   setDoc,
   updateDoc,
+  where,
 } = require('firebase/firestore');
 
 const PROJECT_ID = 'demo-splitpro-rules';
@@ -217,6 +221,20 @@ async function main() {
       await assertSucceeds(getDoc(doc(aliceDb, 'groups/group-1')));
     });
 
+    await runTest('group member can query own groups for profile summary', async () => {
+      await assertSucceeds(getDocs(query(
+        collection(aliceDb, 'groups'),
+        where('memberIds', 'array-contains', 'alice'),
+      )));
+    });
+
+    await runTest('user cannot query another member groups', async () => {
+      await assertFails(getDocs(query(
+        collection(charlieDb, 'groups'),
+        where('memberIds', 'array-contains', 'alice'),
+      )));
+    });
+
     await runTest('non-member cannot read group', async () => {
       await assertFails(getDoc(doc(charlieDb, 'groups/group-1')));
     });
@@ -261,6 +279,20 @@ async function main() {
         ...expense,
         id: 'expense-2',
       }));
+    });
+
+    await runTest('group member can query group expenses', async () => {
+      await assertSucceeds(getDocs(query(
+        collection(aliceDb, 'expenses'),
+        where('groupId', '==', 'group-1'),
+      )));
+    });
+
+    await runTest('group member can query recent user expenses for activity', async () => {
+      await assertSucceeds(getDocs(query(
+        collection(aliceDb, 'expenses'),
+        where('groupId', 'in', ['group-1']),
+      )));
     });
 
     await runTest('invalid expense amount is denied', async () => {

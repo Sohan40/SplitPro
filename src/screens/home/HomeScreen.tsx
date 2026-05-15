@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
+  Image,
 } from 'react-native';
 import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
@@ -97,6 +98,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       {/* Glass sticky header */}
       <GlassHeader height={56}>
         <View style={styles.brandLockup}>
+          <Image source={require('../../../assets/images/home_icon.png')} style={styles.headerLogo} />
           <Text style={styles.headerTitle}>SplitPro</Text>
         </View>
         <View style={{ flex: 1 }} />
@@ -119,8 +121,11 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           <View style={styles.listHeader}>
             {/* Greeting */}
             <View style={styles.greeting}>
-              <Text style={styles.greetingSub}>Welcome back 👋</Text>
-              <Text style={styles.greetingName}>{user?.name?.split(' ')[0] || 'there'}</Text>
+              <Text style={styles.greetingSub}>Welcome back</Text>
+              <View style={styles.greetingNameRow}>
+                <Text style={styles.greetingName}>{user?.name?.split(' ')[0] || 'there'}</Text>
+                <View style={[styles.greetingDot, { backgroundColor: colors.primary }]} />
+              </View>
             </View>
 
             {/* Skia Glass Balance Hero Card */}
@@ -187,8 +192,18 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     ...typography.caption,
     marginBottom: 2,
   },
+  greetingNameRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+  },
   greetingName: {
     ...typography.heading1,
+  },
+  greetingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginLeft: 8,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -210,6 +225,12 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     flexDirection: 'row',
     alignItems: 'center',
   },
+  headerLogo: {
+    width: 40,
+    height: 40,
+    marginRight: 4,
+    borderRadius: 6, // Optional, depending on if the logo needs rounding
+  },
   headerTitle: {
     fontSize: 18,
     fontWeight: '800',
@@ -220,9 +241,9 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(167,139,250,0.1)',
+    backgroundColor: colors.surfaceContainer,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.2)',
+    borderColor: colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -250,9 +271,9 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     width: 42,
     height: 42,
     borderRadius: borderRadius.md,
-    backgroundColor: 'rgba(167,139,250,0.12)',
+    backgroundColor: colors.primaryLight,
     borderWidth: 1,
-    borderColor: 'rgba(167,139,250,0.2)',
+    borderColor: colors.borderLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,

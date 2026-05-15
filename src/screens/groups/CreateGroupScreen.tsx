@@ -1,7 +1,16 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Alert, TouchableOpacity } from 'react-native';
-import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
-import { useTheme } from '../../context/ThemeContext';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { userService } from '../../services/userService';
@@ -9,42 +18,88 @@ import { groupService } from '../../services/groupService';
 import type { GroupMember } from '../../models/Group';
 import type { CreateGroupScreenProps } from '../../navigation/types';
 import type { CurrencyCode } from '../../utils/currency';
-import Button from '../../components/Button';
-import GlassCard from '../../components/GlassCard';
 import Avatar from '../../components/Avatar';
 import Icon from 'react-native-vector-icons/Ionicons';
+import {
+  AuthInput,
+  AuthPrimaryButton,
+  type AuthPalette,
+  useAuthPalette,
+} from '../auth/AuthScreenPrimitives';
 
 export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps) {
   const { user } = useAuth();
   const { currency, options: currencyOptions } = useCurrency();
-  const { theme } = useTheme();
-  const { colors, typography } = theme;
-  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+  const { palette, isDark } = useAuthPalette();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const scrollRef = useRef<ScrollView | null>(null);
+  const memberSectionY = useRef(0);
+  const memberInputFocused = useRef(false);
   const [groupName, setGroupName] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>(currency);
+  const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false);
   const [emailInput, setEmailInput] = useState('');
+  const [keyboardInset, setKeyboardInset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<GroupMember[]>(
     user ? [{ uid: user.id, name: user.name, email: user.email, photoUrl: user.photoUrl || null }] : []
   );
+  const selectedCurrencyOption = useMemo(
+    () => currencyOptions.find(option => option.code === selectedCurrency) || currencyOptions[0],
+    [currencyOptions, selectedCurrency],
+  );
+  const contentBottomPadding = keyboardInset > 0 ? keyboardInset + 140 : 32;
+
+  const scrollMemberInputIntoView = useCallback(() => {
+    const targetY = Math.max(memberSectionY.current - 72, 0);
+
+    [80, 220, 420].forEach(delay => {
+      setTimeout(() => {
+        scrollRef.current?.scrollTo({ y: targetY, animated: true });
+      }, delay);
+    });
+  }, []);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSubscription = Keyboard.addListener(showEvent, event => {
+      setKeyboardInset(event.endCoordinates.height);
+      if (memberInputFocused.current) {
+        scrollMemberInputIntoView();
+      }
+    });
+
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setKeyboardInset(0);
+      memberInputFocused.current = false;
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, [scrollMemberInputIntoView]);
 
   const handleAddMember = async () => {
-    if (!emailInput.trim()) return;
+    const normalizedEmail = emailInput.trim().toLowerCase();
+    if (!normalizedEmail) return;
     
-    if (emailInput.toLowerCase() === user?.email.toLowerCase()) {
+    if (normalizedEmail === user?.email.toLowerCase()) {
       Alert.alert('Info', 'You are already in the group.');
       setEmailInput('');
       return;
     }
 
-    if (members.some(m => m.email === emailInput.toLowerCase())) {
+    if (members.some(m => m.email.toLowerCase() === normalizedEmail)) {
       Alert.alert('Info', 'User is already added.');
       setEmailInput('');
       return;
     }
 
     try {
-      const foundUser = await userService.getUserByEmail(emailInput.trim());
+      const foundUser = await userService.getUserByEmail(normalizedEmail);
       if (foundUser) {
         setMembers([...members, {
           uid: foundUser.id,
@@ -98,202 +153,338 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <GlassCard style={styles.section} padding="lg">
-          <Text style={styles.label}>Group Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="E.g., Apartment, Trip to Bali"
-            placeholderTextColor={colors.textTertiary}
-            value={groupName}
-            onChangeText={setGroupName}
-            autoFocus
-          />
-        </GlassCard>
-
-        <GlassCard style={styles.section} padding="lg">
-          <Text style={styles.label}>Currency</Text>
-          <Text style={styles.helpText}>Choose once for this group. It cannot be changed later.</Text>
-          <View style={styles.currencyGrid}>
-            {currencyOptions.map(option => {
-              const isSelected = selectedCurrency === option.code;
-              return (
-                <TouchableOpacity
-                  key={option.code}
-                  activeOpacity={0.72}
-                  onPress={() => setSelectedCurrency(option.code)}
-                  style={[
-                    styles.currencyOption,
-                    isSelected && styles.currencyOptionSelected,
-                  ]}>
-                  <Text
-                    style={[
-                      styles.currencySymbol,
-                      isSelected && styles.currencySymbolSelected,
-                    ]}>
-                    {option.symbol}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.currencyCode,
-                      isSelected && styles.currencyCodeSelected,
-                    ]}>
-                    {option.code}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={palette.background} />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}
+        style={styles.keyboardView}>
+        <ScrollView
+          alwaysBounceVertical={false}
+          bounces={false}
+          ref={scrollRef}
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: contentBottomPadding },
+          ]}
+          keyboardDismissMode="none"
+          keyboardShouldPersistTaps="always"
+          overScrollMode="never"
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.header}>
+            <Text style={styles.heroTitle}>
+              Create{'\n'}
+              <Text style={styles.heroAccent}>Group</Text>
+            </Text>
           </View>
-        </GlassCard>
 
-        <GlassCard style={styles.section} padding="lg">
-          <Text style={styles.label}>Add Members</Text>
-          <View style={styles.addMemberRow}>
-            <TextInput
-              style={[styles.input, { flex: 1, marginBottom: 0 }]}
-              placeholder="Friend's email"
-              placeholderTextColor={colors.textTertiary}
-              value={emailInput}
-              onChangeText={setEmailInput}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              onSubmitEditing={handleAddMember}
+          <View style={styles.form}>
+            <AuthInput
+              autoFocus
+              iconName="people-outline"
+              onChangeText={setGroupName}
+              placeholder="Group name"
+              returnKeyType="next"
+              value={groupName}
             />
-            <Button 
-              title="Add" 
-              onPress={handleAddMember} 
-              style={{ marginLeft: spacing.md, height: 52 }}
-            />
-          </View>
-        </GlassCard>
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Members ({members.length})</Text>
-          {members.map(member => (
-            <GlassCard key={member.uid} style={styles.memberCard} padding="sm">
-              <View style={styles.memberRow}>
-                <Avatar name={member.name} size={32} />
-                <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>{member.name} {member.uid === user?.id ? '(You)' : ''}</Text>
-                  <Text style={styles.memberEmail}>{member.email}</Text>
+            <View style={styles.fieldBlock}>
+              <Text style={styles.label}>Currency</Text>
+              <TouchableOpacity
+                activeOpacity={0.78}
+                onPress={() => setCurrencyDropdownOpen(value => !value)}
+                style={styles.dropdownButton}>
+                <View style={styles.dropdownIcon}>
+                  <Text style={styles.dropdownSymbol}>{selectedCurrencyOption.symbol}</Text>
                 </View>
-                {member.uid !== user?.id && (
-                  <Icon 
-                    name="close-circle" 
-                    size={24} 
-                    color={colors.textTertiary} 
-                    onPress={() => handleRemoveMember(member.uid)}
-                  />
-                )}
-              </View>
-            </GlassCard>
-          ))}
-        </View>
-      </ScrollView>
+                <View style={styles.dropdownCopy}>
+                  <Text style={styles.dropdownCode}>{selectedCurrencyOption.code}</Text>
+                  <Text style={styles.dropdownLabel}>{selectedCurrencyOption.label}</Text>
+                </View>
+                <Icon
+                  name={currencyDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={palette.muted}
+                />
+              </TouchableOpacity>
 
-      <View style={styles.footer}>
-        <Button 
-          title="Create Group" 
-          onPress={handleCreate} 
-          size="lg" 
-          loading={loading} 
-        />
-      </View>
+              {currencyDropdownOpen ? (
+                <View style={styles.dropdownMenu}>
+                  {currencyOptions.map((option, index) => {
+                    const isSelected = selectedCurrency === option.code;
+                    const isLast = index === currencyOptions.length - 1;
+
+                    return (
+                      <TouchableOpacity
+                        key={option.code}
+                        activeOpacity={0.75}
+                        onPress={() => {
+                          setSelectedCurrency(option.code);
+                          setCurrencyDropdownOpen(false);
+                        }}
+                        style={[
+                          styles.dropdownItem,
+                          !isLast && styles.dropdownDivider,
+                          !isLast && { borderBottomColor: palette.border },
+                        ]}>
+                        <Text style={styles.itemSymbol}>{option.symbol}</Text>
+                        <View style={styles.itemCopy}>
+                          <Text style={styles.itemCode}>{option.code}</Text>
+                          <Text style={styles.itemLabel}>{option.label}</Text>
+                        </View>
+                        {isSelected ? <Icon name="checkmark-circle" size={20} color={palette.primary} /> : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : null}
+              <Text style={styles.lockedHint}>Locked after creation</Text>
+            </View>
+
+            <View
+              onLayout={event => {
+                memberSectionY.current = event.nativeEvent.layout.y;
+              }}
+              style={styles.fieldBlock}>
+              <Text style={styles.label}>Members</Text>
+              <View style={styles.memberInputRow}>
+                <AuthInput
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  iconName="mail-outline"
+                  onChangeText={setEmailInput}
+                  onBlur={() => {
+                    memberInputFocused.current = false;
+                  }}
+                  onFocus={() => {
+                    memberInputFocused.current = true;
+                    setCurrencyDropdownOpen(false);
+                    scrollMemberInputIntoView();
+                  }}
+                  onSubmitEditing={handleAddMember}
+                  placeholder="Friend's email"
+                  returnKeyType="done"
+                  value={emailInput}
+                  wrapperStyle={styles.memberInput}
+                />
+                <TouchableOpacity activeOpacity={0.8} onPress={handleAddMember} style={styles.addButton}>
+                  <Icon name="add" size={25} color={palette.primaryText} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.membersList}>
+                {members.map(member => {
+                  const isMe = member.uid === user?.id;
+                  return (
+                    <View key={member.uid} style={styles.memberRow}>
+                      <Avatar name={member.name} size={36} />
+                      <View style={styles.memberInfo}>
+                        <Text style={styles.memberName} numberOfLines={1}>
+                          {member.name}{isMe ? ' (You)' : ''}
+                        </Text>
+                        <Text style={styles.memberEmail} numberOfLines={1}>{member.email}</Text>
+                      </View>
+                      {!isMe ? (
+                        <TouchableOpacity
+                          activeOpacity={0.75}
+                          onPress={() => handleRemoveMember(member.uid)}
+                          style={styles.removeButton}>
+                          <Icon name="close" size={18} color={palette.muted} />
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+
+            <AuthPrimaryButton
+              disabled={loading}
+              loading={loading}
+              onPress={handleCreate}
+              style={styles.submitButton}
+              title="CREATE GROUP"
+            />
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
 
-const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
+const createStyles = (palette: AuthPalette) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: palette.background,
+  },
+  keyboardView: {
+    flex: 1,
   },
   content: {
-    padding: spacing.xl,
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 28,
   },
-  section: {
-    marginBottom: spacing.xl,
+  header: {
+    marginBottom: 28,
+    paddingTop: 8,
+  },
+  heroTitle: {
+    color: palette.inputText,
+    fontSize: 36,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 43,
+  },
+  heroAccent: {
+    color: palette.primary,
+  },
+  form: {
+    paddingBottom: 12,
   },
   label: {
-    ...typography.bodyBold,
-    marginBottom: spacing.sm,
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 10,
+    textTransform: 'uppercase',
   },
-  helpText: {
-    ...typography.caption,
-    marginBottom: spacing.md,
+  fieldBlock: {
+    marginBottom: 18,
   },
-  currencyGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  currencyOption: {
+  dropdownButton: {
     alignItems: 'center',
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
+    backgroundColor: palette.input,
+    borderColor: palette.border,
+    borderRadius: 14,
     borderWidth: 1,
-    minWidth: 72,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surfaceAlt,
+    flexDirection: 'row',
+    minHeight: 58,
+    paddingHorizontal: 14,
   },
-  currencyOptionSelected: {
-    backgroundColor: colors.primaryLight,
-    borderColor: colors.primary,
+  dropdownIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.accentSoft,
+    borderColor: palette.border,
+    borderRadius: 13,
+    borderWidth: 1,
+    height: 38,
+    justifyContent: 'center',
+    marginRight: 12,
+    width: 38,
   },
-  currencySymbol: {
-    fontSize: 18,
+  dropdownSymbol: {
+    color: palette.primary,
+    fontSize: 17,
     fontWeight: '800',
-    color: colors.textPrimary,
   },
-  currencySymbolSelected: {
-    color: colors.primary,
+  dropdownCopy: {
+    flex: 1,
   },
-  currencyCode: {
-    ...typography.small,
-    marginTop: spacing.xs,
-    color: colors.textSecondary,
-  },
-  currencyCodeSelected: {
-    color: colors.primary,
+  dropdownCode: {
+    color: palette.inputText,
+    fontSize: 15,
     fontWeight: '700',
   },
-  input: {
-    height: 52,
+  dropdownLabel: {
+    color: palette.mutedDim,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dropdownMenu: {
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.lg,
-    fontSize: 16,
-    color: colors.textPrimary,
-    backgroundColor: colors.surfaceAlt,
-    marginBottom: spacing.sm,
+    marginTop: 8,
+    overflow: 'hidden',
   },
-  addMemberRow: {
-    flexDirection: 'row',
+  dropdownItem: {
     alignItems: 'center',
+    flexDirection: 'row',
+    minHeight: 54,
+    paddingHorizontal: 14,
   },
-  memberCard: {
-    marginBottom: spacing.sm,
+  dropdownDivider: {
+    borderBottomWidth: 1,
+  },
+  itemSymbol: {
+    color: palette.primary,
+    fontSize: 15,
+    fontWeight: '800',
+    marginRight: 12,
+    textAlign: 'center',
+    width: 26,
+  },
+  itemCopy: {
+    flex: 1,
+  },
+  itemCode: {
+    color: palette.inputText,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  itemLabel: {
+    color: palette.mutedDim,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  lockedHint: {
+    color: palette.mutedDim,
+    fontSize: 12,
+    marginTop: 8,
+  },
+  memberInputRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+  },
+  memberInput: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  addButton: {
+    alignItems: 'center',
+    backgroundColor: palette.primary,
+    borderRadius: 14,
+    height: 56,
+    justifyContent: 'center',
+    marginLeft: 10,
+    width: 56,
+  },
+  membersList: {
+    marginTop: 14,
   },
   memberRow: {
-    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.border,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    minHeight: 58,
+    marginBottom: 10,
+    paddingHorizontal: 12,
   },
   memberInfo: {
     flex: 1,
-    marginLeft: spacing.md,
+    marginLeft: 12,
   },
   memberName: {
-    ...typography.bodyBold,
+    color: palette.inputText,
+    fontSize: 14,
+    fontWeight: '700',
   },
   memberEmail: {
-    ...typography.small,
+    color: palette.mutedDim,
+    fontSize: 12,
+    marginTop: 2,
   },
-  footer: {
-    padding: spacing.xl,
-    backgroundColor: colors.surfaceContainer,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
+  removeButton: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  submitButton: {
+    marginTop: 6,
   },
 });

@@ -23,21 +23,13 @@ export default function GroupListScreen({ navigation }: GroupListScreenProps) {
   useEffect(() => {
     if (!user) return;
 
-    const fetchGroups = async () => {
-      try {
-        const userGroups = await groupService.getUserGroups(user.id);
-        setGroups(userGroups);
-      } catch (error) {
-        console.error('Failed to fetch groups:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    const unsubscribe = groupService.subscribeToUserGroups(user.id, (userGroups) => {
+      setGroups(userGroups);
+      setLoading(false);
+    });
 
-    fetchGroups();
-    const unsubscribe = navigation.addListener('focus', fetchGroups);
     return unsubscribe;
-  }, [user, navigation]);
+  }, [user]);
 
   const renderGroup = ({ item }: { item: Group }) => {
     const myBalance = user ? (item.balances?.[user.id] || 0) : 0;
