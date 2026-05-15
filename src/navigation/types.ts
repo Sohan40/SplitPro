@@ -25,6 +25,7 @@ export type GroupStackParamList = {
 export type ProfileStackParamList = {
   ProfileMain: undefined;
   Settings: undefined;
+  UpgradeAi: undefined;
 };
 
 // Main Tab Navigator

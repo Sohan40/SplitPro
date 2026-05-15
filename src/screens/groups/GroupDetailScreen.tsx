@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  SectionList,
   ActivityIndicator,
   TouchableOpacity,
   StatusBar,
@@ -11,6 +11,7 @@ import {
 import { spacing, borderRadius, shadows, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import { expenseService } from '../../services/expenseService';
 import type { Group } from '../../models/Group';
@@ -30,9 +31,64 @@ const CATEGORY_ICON_MAP: Record<string, string> = {
   other: 'receipt-outline',
 };
 
+type ExpenseSection = {
+  title: string;
+  data: Expense[];
+};
+
+function getExpenseDateKey(expense: Expense): string {
+  return new Date(expense.createdAt).toDateString();
+}
+
+function getExpenseDateLabel(expense: Expense): string {
+  const expenseDate = new Date(expense.createdAt);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (expenseDate.toDateString() === today.toDateString()) {
+    return 'Today';
+  }
+
+  if (expenseDate.toDateString() === yesterday.toDateString()) {
+    return 'Yesterday';
+  }
+
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: expenseDate.getFullYear() === today.getFullYear() ? undefined : 'numeric',
+  }).format(expenseDate);
+}
+
+function groupExpensesByDate(expenses: Expense[]): ExpenseSection[] {
+  const sortedExpenses = [...expenses].sort((a, b) => b.createdAt - a.createdAt);
+  const sections: ExpenseSection[] = [];
+  const sectionMap = new Map<string, ExpenseSection>();
+
+  sortedExpenses.forEach((expense) => {
+    const key = getExpenseDateKey(expense);
+    let section = sectionMap.get(key);
+
+    if (!section) {
+      section = {
+        title: getExpenseDateLabel(expense),
+        data: [],
+      };
+      sectionMap.set(key, section);
+      sections.push(section);
+    }
+
+    section.data.push(expense);
+  });
+
+  return sections;
+}
+
 export default function GroupDetailScreen({ route, navigation }: GroupDetailScreenProps) {
   const { groupId, groupName } = route.params;
   const { user } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const { theme, isDark } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
@@ -41,6 +97,7 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
   const [group, setGroup] = useState<Group | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
+  const expenseSections = useMemo(() => groupExpensesByDate(expenses), [expenses]);
 
   useEffect(() => {
     navigation.setOptions({ title: groupName });
@@ -112,13 +169,13 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
             <View style={styles.expenseInfo}>
               <Text style={styles.expenseDesc} numberOfLines={1}>{item.description}</Text>
               <Text style={styles.expensePaidBy}>
-                {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ₹{item.amount.toFixed(2)}
+                {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid {formatAmount(item.amount, { currency: group?.currency || currency })}
               </Text>
             </View>
             {amountText !== 0 ? (
               <View style={styles.expenseMyShare}>
                 <Text style={[styles.shareLabel, { color }]}>{descriptionText}</Text>
-                <Text style={[styles.shareAmount, { color }]}>₹{amountText.toFixed(2)}</Text>
+                <Text style={[styles.shareAmount, { color }]}>{formatAmount(amountText, { currency: group?.currency || currency })}</Text>
               </View>
             ) : (
               <Text style={styles.notInvolved}>Not involved</Text>
@@ -131,6 +188,7 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
 
   const myBalance = user && group ? (group.balances?.[user.id] || 0) : 0;
   const isPositive = myBalance >= 0;
+  const groupCurrency = group?.currency || currency;
 
   return (
     <View style={styles.container}>
@@ -141,7 +199,7 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
         <View style={styles.balanceSummary}>
           <Text style={styles.balanceLabel}>Your balance in this group</Text>
           <Text style={[styles.balanceAmount, { color: isPositive ? colors.owed : colors.owes }]}>
-            {isPositive ? '+' : '-'}₹{Math.abs(myBalance).toFixed(2)}
+            {formatAmount(myBalance, { currency: groupCurrency })}
           </Text>
           <Text style={[styles.balanceSubLabel, { color: isPositive ? colors.owed : colors.owes }]}>
             {myBalance === 0 ? 'All settled up 🎉' : isPositive ? 'People owe you' : 'You owe people'}
@@ -184,10 +242,15 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
       {loading ? (
         <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.primary} />
       ) : (
-        <FlatList
-          data={expenses}
+        <SectionList
+          sections={expenseSections}
           keyExtractor={item => item.id}
           renderItem={renderExpense}
+          renderSectionHeader={({ section }) => (
+            <View style={styles.dateHeader}>
+              <Text style={styles.dateHeaderText}>{section.title}</Text>
+            </View>
+          )}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
@@ -204,9 +267,10 @@ export default function GroupDetailScreen({ route, navigation }: GroupDetailScre
         style={styles.fab}
         onPress={() => navigation.navigate('AddExpense', { groupId, groupName })}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel="Add expense"
       >
-        <Icon name="add" size={24} color={primaryForeground} />
-        <Text style={[styles.fabText, { color: primaryForeground }]}>Add Expense</Text>
+        <Icon name="add" size={30} color={primaryForeground} />
       </TouchableOpacity>
     </View>
   );
@@ -276,6 +340,14 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     flexGrow: 1,
     paddingTop: spacing.sm,
   },
+  dateHeader: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  dateHeaderText: {
+    ...typography.label,
+    color: colors.textSecondary,
+  },
   expenseCardWrapper: {
     marginBottom: spacing.md,
   },
@@ -326,17 +398,12 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     position: 'absolute',
     bottom: spacing.xl,
     right: spacing.xl,
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    height: 54,
-    borderRadius: 27,
+    justifyContent: 'center',
+    height: 58,
+    width: 58,
+    borderRadius: 29,
     backgroundColor: colors.primary,
-    gap: spacing.sm,
     ...shadows.lg,
-  },
-  fabText: {
-    fontWeight: '700',
-    fontSize: 15,
   },
 });

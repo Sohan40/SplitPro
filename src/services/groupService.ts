@@ -70,12 +70,11 @@ export const groupService = {
   /**
    * Update a group's data (e.g., when balances change)
    */
-  /**
-   * Update a group's data (e.g., when balances change)
-   */
   async updateGroup(groupId: string, data: Partial<Group>): Promise<void> {
+    const mutableData = { ...data };
+    delete mutableData.currency;
     await db.collection(GROUPS_COLLECTION).doc(groupId).update({
-      ...data,
+      ...mutableData,
       updatedAt: Date.now(),
     });
   },

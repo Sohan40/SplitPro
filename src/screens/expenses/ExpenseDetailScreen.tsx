@@ -3,10 +3,12 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, Touchable
 import { spacing, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { expenseService } from '../../services/expenseService';
 import { groupService } from '../../services/groupService';
 import { notificationService } from '../../services/notificationService';
 import type { Expense } from '../../models/Expense';
+import type { Group } from '../../models/Group';
 import type { ExpenseDetailScreenProps } from '../../navigation/types';
 import Card from '../../components/Card';
 import Avatar from '../../components/Avatar';
@@ -16,10 +18,12 @@ import Icon from 'react-native-vector-icons/Ionicons';
 export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetailScreenProps) {
   const { expenseId, groupId } = route.params;
   const { user } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const [expense, setExpense] = useState<Expense | null>(null);
+  const [group, setGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
 
@@ -36,10 +40,10 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
             if (!expense || !user) return;
             try {
               setDeleting(true);
-              const group = await groupService.getGroup(groupId);
-              if (!group) throw new Error('Group not found');
+              const latestGroup = await groupService.getGroup(groupId);
+              if (!latestGroup) throw new Error('Group not found');
 
-              const newBalances = { ...group.balances };
+              const newBalances = { ...latestGroup.balances };
 
               // Revert old payer contribution
               newBalances[expense.paidBy.uid] = (newBalances[expense.paidBy.uid] || 0) - expense.amount;
@@ -51,13 +55,13 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
               await groupService.updateGroup(groupId, { balances: newBalances });
               await expenseService.deleteExpense(expenseId);
               
-              const otherMemberIds = group.memberIds.filter(id => id !== user.id);
+              const otherMemberIds = latestGroup.memberIds.filter(id => id !== user.id);
               if (otherMemberIds.length > 0) {
                 notificationService.createNotificationsForUsers(
                   otherMemberIds,
                   {
                     title: 'Expense Deleted',
-                    body: `${user.name} deleted "${expense.description}" from ${group.name}`,
+                    body: `${user.name} deleted "${expense.description}" from ${latestGroup.name}`,
                     type: 'general',
                     data: { groupId },
                   }
@@ -84,6 +88,12 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
 
     return unsubscribe;
   }, [expenseId]);
+
+  useEffect(() => {
+    groupService.getGroup(groupId)
+      .then(setGroup)
+      .catch(error => console.warn('Failed to load group currency:', error));
+  }, [groupId]);
 
   useEffect(() => {
     if (!expense) return;
@@ -126,13 +136,14 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
       </View>
     );
   }
+  const expenseCurrency = group?.currency || currency;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
         <CategoryIcon category={expense.category} size={64} />
         <Text style={styles.description}>{expense.description}</Text>
-        <Text style={styles.amount}>₹{expense.amount.toFixed(2)}</Text>
+        <Text style={styles.amount}>{formatAmount(expense.amount, { currency: expenseCurrency })}</Text>
         <Text style={styles.date}>
           Added by {expense.createdBy === user?.id ? 'you' : 'someone'} on{' '}
           {new Date(expense.createdAt).toLocaleDateString()}
@@ -146,7 +157,7 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
             <Text style={styles.payerLabel}>Paid by</Text>
             <Text style={styles.payerName}>{expense.paidBy.uid === user?.id ? 'You' : expense.paidBy.name}</Text>
           </View>
-          <Text style={styles.payerAmount}>₹{expense.amount.toFixed(2)}</Text>
+          <Text style={styles.payerAmount}>{formatAmount(expense.amount, { currency: expenseCurrency })}</Text>
         </View>
       </Card>
 
@@ -162,7 +173,7 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
           >
             <Avatar name={p.name} size={32} />
             <Text style={styles.participantName}>{p.uid === user?.id ? 'You' : p.name}</Text>
-            <Text style={styles.participantAmount}>₹{p.amount.toFixed(2)}</Text>
+            <Text style={styles.participantAmount}>{formatAmount(p.amount, { currency: expenseCurrency })}</Text>
           </View>
         ))}
       </Card>

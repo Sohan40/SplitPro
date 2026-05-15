@@ -6,6 +6,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { CurrencyProvider } from './src/context/CurrencyContext';
 import { ErrorProvider } from './src/context/ErrorContext';
 import { useNotificationHandler } from './src/hooks/useNotificationHandler';
 import { configureGoogleSignIn } from './src/services/googleAuthService';
@@ -45,11 +46,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <ErrorProvider>
-          <AuthProvider>
-            <Root />
-          </AuthProvider>
-        </ErrorProvider>
+        <CurrencyProvider>
+          <ErrorProvider>
+            <AuthProvider>
+              <Root />
+            </AuthProvider>
+          </ErrorProvider>
+        </CurrencyProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

@@ -11,6 +11,7 @@ import {
 import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import type { Group } from '../../models/Group';
 import type { HomeScreenProps } from '../../navigation/types';
@@ -24,6 +25,7 @@ import { calculateUserSummary } from '../../utils/balanceCalculator';
 
 export default function HomeScreen({ navigation }: HomeScreenProps) {
   const { user } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const { theme, isDark } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
@@ -76,7 +78,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             </View>
             <View style={styles.groupRight}>
               <Text style={[styles.groupBalance, { color: isPositive ? colors.owed : colors.owes }]}>
-                {isPositive ? '+' : ''}₹{myBalance.toFixed(2)}
+                {formatAmount(myBalance, { currency: item.currency || currency })}
               </Text>
               <Text style={[styles.groupBalanceLabel, { color: isPositive ? colors.owed : colors.owes }]}>
                 {isPositive ? 'owed to you' : 'you owe'}

@@ -14,6 +14,7 @@ import {
 import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import { expenseService } from '../../services/expenseService';
 import { notificationService } from '../../services/notificationService';
@@ -25,6 +26,7 @@ import type {
   ExpenseParticipant,
 } from '../../models/Expense';
 import type { AddExpenseScreenProps } from '../../navigation/types';
+import { getCurrencySymbol } from '../../utils/currency';
 import {
   calculateEqualSplit,
   calculateCustomSplit,
@@ -51,14 +53,13 @@ const defaultMemberInput: MemberInputState = {
   shares: '0',
 };
 
-const formatCurrency = (value: number) => `\u20B9${value.toFixed(2)}`;
-
 export default function AddExpenseScreen({
   route,
   navigation,
 }: AddExpenseScreenProps) {
   const { groupId, groupName, expenseId } = route.params;
   const { user } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const primaryForeground = theme.dark ? colors.black : colors.white;
@@ -414,6 +415,8 @@ export default function AddExpenseScreen({
   // UI
   // -------------------------------------------------------------------------
   const previewMap = buildPreviewMap();
+  const activeCurrency = group.currency || currency;
+  const activeCurrencySymbol = getCurrencySymbol(activeCurrency);
   const categoryList: Category[] = [
     'food',
     'groceries',
@@ -425,7 +428,7 @@ export default function AddExpenseScreen({
   ];
   const splitTypes: { key: SplitType; label: string }[] = [
     { key: 'equal', label: '=' },
-    { key: 'custom', label: '₹' },
+    { key: 'custom', label: activeCurrencySymbol },
     { key: 'percentage', label: '%' },
     { key: 'shares', label: 'Shares' },
   ];
@@ -449,7 +452,7 @@ export default function AddExpenseScreen({
             onChangeText={setDescription}
           />
           <View style={styles.amountContainer}>
-            <Text style={styles.currencySymbol}>{'\u20B9'}</Text>
+            <Text style={styles.currencySymbol}>{activeCurrencySymbol}</Text>
             <TextInput
               style={styles.amountInput}
               placeholder="0.00"
@@ -591,7 +594,7 @@ export default function AddExpenseScreen({
                         !isIncluded && styles.previewTextMuted,
                       ]}
                     >
-                      Split: {formatCurrency(previewAmount)}
+                      Split: {formatAmount(previewAmount, { currency: activeCurrency })}
                     </Text>
                   </View>
                 </View>

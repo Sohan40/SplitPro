@@ -1,24 +1,84 @@
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, TextInput } from 'react-native';
-import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
-import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../context/AuthContext';
-import { groupService } from '../../services/groupService';
-import { userService } from '../../services/userService';
-import { auth } from '../../services/firebase';
-import { calculateUserSummary, hasOutstandingBalances } from '../../utils/balanceCalculator';
-import GlassCard from '../../components/GlassCard';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  Modal,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
 import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
-import Icon from 'react-native-vector-icons/Ionicons';
+import { borderRadius, spacing, type ThemeColors, type ThemeTypography } from '../../components/theme';
+import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
+import { useTheme } from '../../context/ThemeContext';
+import { useAiEntitlement } from '../../features/ai/hooks/useAiEntitlement';
+import type { AiEntitlement, UserAiUsage } from '../../models/User';
 import type { ProfileScreenProps } from '../../navigation/types';
+import { groupService } from '../../services/groupService';
+import { userService } from '../../services/userService';
+import { calculateUserSummary } from '../../utils/balanceCalculator';
+import { AuthBackground } from '../auth/AuthScreenPrimitives';
+
+type SummaryState = {
+  totalBalance: number;
+  youOwe: number;
+  youAreOwed: number;
+};
+
+function toMillis(value: AiEntitlement['expiresAt'] | UserAiUsage['resetAt'] | undefined | null): number | null {
+  if (!value) return null;
+  if (typeof value === 'number') return value;
+  if (typeof value.toMillis === 'function') return value.toMillis();
+  return null;
+}
+
+function formatDate(value: AiEntitlement['expiresAt'] | UserAiUsage['resetAt'] | undefined | null): string | null {
+  const millis = toMillis(value);
+  if (!millis) return null;
+
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(millis));
+}
+
+function getProviderLabel(provider?: AiEntitlement['provider']): string {
+  switch (provider) {
+    case 'google_play':
+      return 'Google Play';
+    case 'manual_test':
+      return 'Test entitlement';
+    default:
+      return 'Backend entitlement';
+  }
+}
+
+function getStatusLabel(status: string): string {
+  return status
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 export default function ProfileScreen({ navigation }: ProfileScreenProps) {
-  const { user, logout } = useAuth();
-  const { theme } = useTheme();
+  const { user } = useAuth();
+  const { formatAmount } = useCurrency();
+  const { theme, isDark } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
-  const [summary, setSummary] = useState({ totalBalance: 0, youOwe: 0, youAreOwed: 0 });
+  const entitlement = useAiEntitlement();
+  const [summary, setSummary] = useState<SummaryState>({
+    totalBalance: 0,
+    youOwe: 0,
+    youAreOwed: 0,
+  });
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [newName, setNewName] = useState(user?.name || '');
   const [updating, setUpdating] = useState(false);
@@ -35,66 +95,13 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         console.error(error);
       }
     };
+
     fetchSummary();
   }, [user]);
 
-  const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: logout },
-    ]);
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'This action is irreversible. All your data will be permanently deleted. Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (!user) return;
-            try {
-              const groups = await groupService.getUserGroups(user.id);
-              const latestSummary = calculateUserSummary(groups, user.id);
-
-              if (hasOutstandingBalances(groups, user.id)) {
-                const unsettledDetails: string[] = [];
-
-                if (latestSummary.youOwe > 0.01) {
-                  unsettledDetails.push(`you still owe \u20B9${latestSummary.youOwe.toFixed(2)}`);
-                }
-
-                if (latestSummary.youAreOwed > 0.01) {
-                  unsettledDetails.push(`you are still owed \u20B9${latestSummary.youAreOwed.toFixed(2)}`);
-                }
-
-                Alert.alert(
-                  'Settle Up Required',
-                  `Please settle all balances before deleting your account. Right now ${unsettledDetails.join(' and ')}.`
-                );
-                return;
-              }
-
-              await userService.deleteUser(user.id);
-              await auth.currentUser?.delete();
-            } catch (error: any) {
-              console.error(error);
-              if (error.code === 'auth/requires-recent-login') {
-                Alert.alert(
-                  'Authentication Required',
-                  'For security reasons, please log out and log back in before deleting your account.'
-                );
-              } else {
-                Alert.alert('Error', error.message || 'Failed to delete account.');
-              }
-            }
-          }
-        },
-      ]
-    );
+  const openEditModal = () => {
+    setNewName(user?.name || '');
+    setIsEditModalVisible(true);
   };
 
   const handleUpdateName = async () => {
@@ -113,161 +120,258 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     }
   };
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-      <GlassCard padding="lg" gradientDir="diagonal" style={styles.header}>
-        <View style={styles.identityContent}>
-          <Avatar name={user?.name || 'User'} size={80} />
-          <View style={styles.nameRow}>
-            <Text style={styles.userName} numberOfLines={1}>{user?.name}</Text>
-            <TouchableOpacity
-              style={styles.editIcon}
-              onPress={() => {
-                setNewName(user?.name || '');
-                setIsEditModalVisible(true);
-              }}
-            >
-              <Icon name="pencil" size={16} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.userEmail} numberOfLines={1}>{user?.email}</Text>
-        </View>
-      </GlassCard>
+  const netBalanceColor = summary.totalBalance >= 0 ? colors.primary : colors.owes;
+  const aiEntitlement = user?.entitlement?.ai;
+  const accessUntil = formatDate(aiEntitlement?.expiresAt);
+  const usageResetAt = formatDate(user?.aiUsage?.resetAt);
+  const primaryForeground = isDark ? colors.black : colors.white;
 
-      <View style={styles.summaryGrid}>
-        <GlassCard style={styles.summaryCard}>
-          <View style={styles.summaryInner}>
-            <Text style={styles.summaryLabel}>Total Balance</Text>
-            <Text
-              style={[
-                styles.summaryAmount,
-                { color: summary.totalBalance >= 0 ? colors.primary : colors.owes }
-              ]}
-            >
-              {'\u20B9'}{summary.totalBalance.toFixed(2)}
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+      <AuthBackground>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.identityPanel}>
+            <View style={styles.avatarFrame}>
+              <Avatar name={user?.name || 'User'} size={86} />
+            </View>
+
+            <View style={styles.nameRow}>
+              <Text style={styles.userName} numberOfLines={1}>
+                {user?.name || 'User'}
+              </Text>
+              <TouchableOpacity activeOpacity={0.8} onPress={openEditModal} style={styles.editNameButton}>
+                <Icon name="pencil" size={15} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.userEmail} numberOfLines={1}>
+              {user?.email || 'No email address'}
             </Text>
           </View>
-        </GlassCard>
-      </View>
 
-      <View style={styles.row}>
-        <GlassCard style={[styles.miniCard, { marginRight: spacing.md }]}>
-          <View style={styles.miniInner}>
-            <Text style={styles.miniLabel}>You are owed</Text>
-            <Text style={[styles.miniAmount, { color: colors.owed }]}>{'\u20B9'}{summary.youAreOwed.toFixed(2)}</Text>
+          <View style={styles.balanceHero}>
+            <View>
+              <Text style={styles.balanceLabel}>Total Balance</Text>
+              <Text style={[styles.balanceAmount, { color: netBalanceColor }]}>
+                {formatAmount(summary.totalBalance)}
+              </Text>
+            </View>
+            <View style={[styles.balanceIcon, { backgroundColor: colors.primaryLight }]}>
+              <Icon name="wallet-outline" size={24} color={colors.primary} />
+            </View>
           </View>
-        </GlassCard>
-        <GlassCard style={styles.miniCard}>
-          <View style={styles.miniInner}>
-            <Text style={styles.miniLabel}>You owe</Text>
-            <Text style={[styles.miniAmount, { color: colors.owes }]}>{'\u20B9'}{summary.youOwe.toFixed(2)}</Text>
-          </View>
-        </GlassCard>
-      </View>
 
-      <GlassCard padding="none" style={styles.menu}>
-        <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('Settings')}>
-          <View style={[styles.menuIcon, { backgroundColor: colors.primaryLight }]}>
-            <Icon name="settings-outline" size={20} color={colors.primary} />
-          </View>
-          <Text style={styles.menuText}>Settings</Text>
-          <Icon name="chevron-forward" size={20} color={colors.textTertiary} />
-        </TouchableOpacity>
+          <View style={styles.summaryRow}>
+            <View style={[styles.summaryTile, styles.summaryTileLeft]}>
+              <View style={[styles.tileIcon, { backgroundColor: colors.owedLight }]}>
+                <Icon name="trending-up-outline" size={18} color={colors.owed} />
+              </View>
+              <Text style={styles.tileLabel}>You are owed</Text>
+              <Text style={[styles.tileAmount, { color: colors.owed }]}>
+                {formatAmount(summary.youAreOwed)}
+              </Text>
+            </View>
 
-        <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-          <View style={[styles.menuIcon, { backgroundColor: 'rgba(245,158,11,0.14)' }]}>
-            <Icon name="log-out-outline" size={20} color={colors.warning} />
+            <View style={styles.summaryTile}>
+              <View style={[styles.tileIcon, { backgroundColor: colors.owesLight }]}>
+                <Icon name="trending-down-outline" size={18} color={colors.owes} />
+              </View>
+              <Text style={styles.tileLabel}>You owe</Text>
+              <Text style={[styles.tileAmount, { color: colors.owes }]}>
+                {formatAmount(summary.youOwe)}
+              </Text>
+            </View>
           </View>
-          <Text style={[styles.menuText, { color: colors.warning }]}>Logout</Text>
-          <Icon name="chevron-forward" size={20} color={colors.textTertiary} />
-        </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={handleDeleteAccount}>
-          <View style={[styles.menuIcon, { backgroundColor: colors.owesLight }]}>
-            <Icon name="trash-outline" size={20} color={colors.owes} />
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Subscription</Text>
           </View>
-          <Text style={[styles.menuText, { color: colors.owes }]}>Delete Account</Text>
-          <Icon name="chevron-forward" size={20} color={colors.textTertiary} />
-        </TouchableOpacity>
-      </GlassCard>
 
-      <Text style={styles.version}>SplitPro v1.0.0</Text>
+          <View
+            style={[
+              styles.subscriptionCard,
+              entitlement.isAiEntitled && {
+                backgroundColor: colors.owedLight,
+                borderColor: colors.owed,
+              },
+            ]}>
+            <View style={styles.subscriptionHeader}>
+              <View
+                style={[
+                  styles.subscriptionIcon,
+                  { backgroundColor: entitlement.isAiEntitled ? colors.owedLight : colors.primaryLight },
+                ]}>
+                <Icon
+                  name={entitlement.isAiEntitled ? 'shield-checkmark-outline' : 'sparkles-outline'}
+                  size={22}
+                  color={entitlement.isAiEntitled ? colors.owed : colors.primary}
+                />
+              </View>
+              <View style={styles.subscriptionCopy}>
+                <Text style={styles.subscriptionTitle}>
+                  {entitlement.isAiEntitled ? 'SplitPro AI active' : 'Upgrade to SplitPro AI'}
+                </Text>
+                <Text style={styles.subscriptionText}>
+                  {entitlement.isAiEntitled
+                    ? 'Your AI access is verified by backend entitlement.'
+                    : 'Unlock AI spend summaries, budget suggestions, and expense insights.'}
+                </Text>
+              </View>
+            </View>
+
+            {entitlement.isLoading ? (
+              <Text style={styles.subscriptionMeta}>Checking subscription...</Text>
+            ) : entitlement.isAiEntitled ? (
+              <View style={styles.subscriptionDetails}>
+                <SubscriptionDetail label="Plan" styles={styles} value={entitlement.planLabel} />
+                <SubscriptionDetail
+                  label="Status"
+                  styles={styles}
+                  value={getStatusLabel(entitlement.statusLabel)}
+                />
+                <SubscriptionDetail
+                  label="Provider"
+                  styles={styles}
+                  value={getProviderLabel(aiEntitlement?.provider)}
+                />
+                {accessUntil ? (
+                  <SubscriptionDetail label="Access until" styles={styles} value={accessUntil} />
+                ) : null}
+                {entitlement.usageLimit !== null && entitlement.usageUsed !== null ? (
+                  <SubscriptionDetail
+                    label="AI credits"
+                    styles={styles}
+                    value={`${entitlement.usageUsed}/${entitlement.usageLimit} used`}
+                  />
+                ) : null}
+                {usageResetAt ? (
+                  <SubscriptionDetail label="Credits reset" styles={styles} value={usageResetAt} />
+                ) : null}
+              </View>
+            ) : (
+              <Button
+                icon={<Icon name="sparkles-outline" size={17} color={primaryForeground} />}
+                onPress={() => navigation.navigate('UpgradeAi')}
+                size="md"
+                style={styles.upgradeButton}
+                title="Upgrade"
+              />
+            )}
+          </View>
+
+          <Text style={styles.version}>SplitPro v1.0.0</Text>
+        </ScrollView>
+      </AuthBackground>
 
       <Modal
-        visible={isEditModalVisible}
-        transparent
         animationType="fade"
         onRequestClose={() => setIsEditModalVisible(false)}
-      >
+        transparent
+        visible={isEditModalVisible}>
         <View style={styles.modalOverlay}>
-          <GlassCard style={styles.modalContent} padding="lg" gradientDir="diagonal">
+          <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Update Profile</Text>
-              <TouchableOpacity onPress={() => setIsEditModalVisible(false)}>
-                <Icon name="close" size={24} color={colors.textSecondary} />
+              <TouchableOpacity
+                activeOpacity={0.75}
+                onPress={() => setIsEditModalVisible(false)}
+                style={styles.modalClose}>
+                <Icon name="close" size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <Text style={styles.modalLabel}>Display Name</Text>
             <TextInput
-              style={styles.input}
-              placeholder="Your name"
-              value={newName}
-              onChangeText={setNewName}
               autoFocus
+              onChangeText={setNewName}
+              placeholder="Your name"
               placeholderTextColor={colors.textTertiary}
+              selectionColor={colors.primary}
+              style={styles.input}
+              value={newName}
             />
 
             <Button
-              title={updating ? 'Updating...' : 'Save Changes'}
-              onPress={handleUpdateName}
-              loading={updating}
               disabled={updating}
+              loading={updating}
+              onPress={handleUpdateName}
+              title={updating ? 'Updating...' : 'Save Changes'}
             />
-          </GlassCard>
+          </View>
         </View>
       </Modal>
-    </ScrollView>
+    </View>
+  );
+}
+
+type SubscriptionDetailProps = {
+  label: string;
+  value: string;
+  styles: ReturnType<typeof createStyles>;
+};
+
+function SubscriptionDetail({ label, value, styles }: SubscriptionDetailProps) {
+  return (
+    <View style={styles.subscriptionDetailRow}>
+      <Text style={styles.subscriptionDetailLabel}>{label}</Text>
+      <Text numberOfLines={1} style={styles.subscriptionDetailValue}>
+        {value}
+      </Text>
+    </View>
   );
 }
 
 const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   container: {
-    flex: 1,
     backgroundColor: colors.background,
+    flex: 1,
   },
   content: {
-    padding: spacing.xl,
+    flexGrow: 1,
+    paddingBottom: spacing.huge,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.xl,
   },
-  header: {
-    marginBottom: spacing.xl,
-  },
-  identityContent: {
+  identityPanel: {
     alignItems: 'center',
-    width: '100%',
+    marginBottom: spacing.xl,
+    paddingTop: spacing.sm,
   },
-  userName: {
-    ...typography.heading2,
-    textAlign: 'center',
-    maxWidth: '78%',
+  avatarFrame: {
+    alignItems: 'center',
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.borderLight,
+    borderRadius: 54,
+    borderWidth: 1,
+    height: 108,
+    justifyContent: 'center',
+    width: 108,
   },
   nameRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    width: '100%',
     marginTop: spacing.md,
+    maxWidth: '100%',
   },
-  editIcon: {
-    marginLeft: spacing.xs,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: colors.primaryLight,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
+  userName: {
+    ...typography.heading1,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
+  editNameButton: {
     alignItems: 'center',
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.borderLight,
+    borderRadius: 15,
+    borderWidth: 1,
+    height: 30,
     justifyContent: 'center',
+    marginLeft: spacing.sm,
+    width: 30,
   },
   userEmail: {
     ...typography.caption,
@@ -275,91 +379,169 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     maxWidth: '100%',
     textAlign: 'center',
   },
-  summaryGrid: {
-    marginBottom: spacing.md,
-  },
-  summaryCard: {
-    paddingVertical: spacing.lg,
-  },
-  summaryInner: {
+  balanceHero: {
     alignItems: 'center',
+    backgroundColor: colors.surfaceContainer,
+    borderColor: colors.borderLight,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+    minHeight: 108,
+    padding: spacing.xl,
   },
-  summaryLabel: {
-    ...typography.caption,
+  balanceLabel: {
+    ...typography.captionBold,
+    color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
-  summaryAmount: {
-    ...typography.heading1,
+  balanceAmount: {
+    ...typography.amountLarge,
   },
-  row: {
-    flexDirection: 'row',
-    marginBottom: spacing.xl,
-  },
-  miniCard: {
-    flex: 1,
-  },
-  miniInner: {
+  balanceIcon: {
     alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  miniLabel: {
-    fontSize: 10,
-    textTransform: 'uppercase',
-    color: colors.textSecondary,
-    marginBottom: 4,
-  },
-  miniAmount: {
-    ...typography.bodyBold,
-  },
-  menu: {
-    marginTop: spacing.md,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  menuItemLast: {
-    borderBottomWidth: 0,
-  },
-  menuIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
+    borderRadius: 22,
+    height: 48,
     justifyContent: 'center',
+    marginLeft: spacing.md,
+    width: 48,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    marginBottom: spacing.xxl,
+  },
+  summaryTile: {
+    backgroundColor: colors.surfaceContainer,
+    borderColor: colors.borderLight,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 126,
+    padding: spacing.lg,
+  },
+  summaryTileLeft: {
     marginRight: spacing.md,
   },
-  menuText: {
+  tileIcon: {
+    alignItems: 'center',
+    borderRadius: 16,
+    height: 34,
+    justifyContent: 'center',
+    marginBottom: spacing.md,
+    width: 34,
+  },
+  tileLabel: {
+    color: colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+    lineHeight: 15,
+    marginBottom: spacing.xs,
+    textTransform: 'uppercase',
+  },
+  tileAmount: {
+    ...typography.bodyBold,
+    fontSize: 17,
+  },
+  sectionHeader: {
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    ...typography.heading3,
+  },
+  subscriptionCard: {
+    backgroundColor: colors.surfaceContainer,
+    borderColor: colors.borderLight,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.xxl,
+    padding: spacing.lg,
+  },
+  subscriptionHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+  },
+  subscriptionIcon: {
+    alignItems: 'center',
+    borderRadius: 20,
+    height: 42,
+    justifyContent: 'center',
+    marginRight: spacing.md,
+    width: 42,
+  },
+  subscriptionCopy: {
     flex: 1,
+  },
+  subscriptionTitle: {
     ...typography.bodyBold,
   },
-  version: {
-    textAlign: 'center',
+  subscriptionText: {
     ...typography.caption,
-    marginTop: spacing.huge,
+    marginTop: spacing.xs,
+  },
+  subscriptionMeta: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: spacing.lg,
+  },
+  subscriptionDetails: {
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  subscriptionDetailRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  subscriptionDetailLabel: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  subscriptionDetailValue: {
+    ...typography.captionBold,
+    color: colors.textPrimary,
+    flex: 1,
+    marginLeft: spacing.md,
+    textAlign: 'right',
+  },
+  upgradeButton: {
+    marginTop: spacing.lg,
+  },
+  version: {
+    ...typography.caption,
     color: colors.textTertiary,
+    marginTop: spacing.xxxl,
+    textAlign: 'center',
   },
   modalOverlay: {
-    flex: 1,
     backgroundColor: colors.overlay,
+    flex: 1,
     justifyContent: 'center',
     padding: spacing.xl,
   },
   modalContent: {
+    backgroundColor: colors.surfaceContainer,
+    borderColor: colors.borderLight,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    padding: spacing.xl,
     width: '100%',
   },
   modalHeader: {
+    alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: spacing.lg,
   },
   modalTitle: {
     ...typography.heading3,
+  },
+  modalClose: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
   modalLabel: {
     ...typography.captionBold,
@@ -367,12 +549,14 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     marginBottom: spacing.xs,
   },
   input: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
     ...typography.body,
-    marginBottom: spacing.xl,
-    borderWidth: 1,
+    backgroundColor: colors.surfaceContainerHigh,
     borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    marginBottom: spacing.xl,
+    minHeight: 52,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 0,
   },
 });

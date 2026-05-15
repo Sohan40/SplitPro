@@ -26,6 +26,7 @@ const group = {
   ],
   memberIds: ['alice', 'bob'],
   balances: { alice: 0, bob: 0 },
+  currency: 'INR',
   createdAt: 1710000000000,
   updatedAt: 1710000000000,
 };
@@ -218,6 +219,41 @@ async function main() {
 
     await runTest('non-member cannot read group', async () => {
       await assertFails(getDoc(doc(charlieDb, 'groups/group-1')));
+    });
+
+    await runTest('member can create group with currency', async () => {
+      await assertSucceeds(setDoc(doc(aliceDb, 'groups/group-2'), {
+        ...group,
+        id: 'group-2',
+        name: 'Trip',
+        currency: 'USD',
+      }));
+    });
+
+    await runTest('group creation requires valid currency', async () => {
+      const groupWithoutCurrency = { ...group, id: 'group-missing-currency' };
+      delete groupWithoutCurrency.currency;
+
+      await assertFails(setDoc(doc(aliceDb, 'groups/group-missing-currency'), groupWithoutCurrency));
+      await assertFails(setDoc(doc(aliceDb, 'groups/group-invalid-currency'), {
+        ...group,
+        id: 'group-invalid-currency',
+        currency: 'BTC',
+      }));
+    });
+
+    await runTest('member cannot change group currency', async () => {
+      await assertFails(updateDoc(doc(aliceDb, 'groups/group-1'), {
+        currency: 'USD',
+        updatedAt: 1710000002000,
+      }));
+    });
+
+    await runTest('member can update group balances without changing currency', async () => {
+      await assertSucceeds(updateDoc(doc(aliceDb, 'groups/group-1'), {
+        balances: { alice: 20, bob: -20 },
+        updatedAt: 1710000003000,
+      }));
     });
 
     await runTest('member can create valid expense', async () => {

@@ -1,4 +1,5 @@
 import type { Group } from '../models/Group';
+import { formatCurrencyAmount, type CurrencyCode } from './currency';
 
 export interface UserSummary {
   totalBalance: number;
@@ -36,11 +37,8 @@ export function hasOutstandingBalances(groups: Group[], userId: string): boolean
 }
 
 /**
- * Formats a balance for display (e.g., "+\u20B91,234.56" or "-\u20B91,234.56")
+ * Formats a balance for display with the selected/default currency.
  */
-export function formatBalance(amount: number): string {
-  const isNegative = amount < 0;
-  const absAmount = Math.abs(amount).toFixed(2);
-  const sign = isNegative ? '-' : (amount > 0 ? '+' : '');
-  return `${sign}\u20B9${absAmount}`;
+export function formatBalance(amount: number, currency: CurrencyCode = 'INR'): string {
+  return formatCurrencyAmount(amount, currency);
 }

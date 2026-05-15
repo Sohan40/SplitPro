@@ -1,3 +1,5 @@
+import type { CurrencyCode } from '../utils/currency';
+
 export interface GroupMember {
   uid: string;
   name: string;
@@ -12,6 +14,7 @@ export interface Group {
   members: GroupMember[];
   memberIds: string[]; // Flat array of UIDs for Firestore queries
   balances: Record<string, number>; // uid -> net balance (positive = owed, negative = owes)
+  currency?: CurrencyCode; // Immutable after creation. Missing old groups fall back to default currency.
   createdAt: number;
   updatedAt: number;
 }

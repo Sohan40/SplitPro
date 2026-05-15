@@ -58,9 +58,18 @@ service cloud.firestore {
         'members',
         'memberIds',
         'balances',
+        'currency',
         'createdAt',
         'updatedAt'
       ]);
+    }
+
+    function validCurrency(value) {
+      return value in ['INR', 'USD', 'EUR', 'GBP', 'AED'];
+    }
+
+    function groupCurrencyUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['currency']);
     }
 
     function validGroup(groupId) {
@@ -71,6 +80,8 @@ service cloud.firestore {
         && request.resource.data.members is list
         && request.resource.data.memberIds is list
         && request.resource.data.balances is map
+        && (!('currency' in request.resource.data)
+          || validCurrency(request.resource.data.currency))
         && request.resource.data.createdAt is number
         && request.resource.data.updatedAt is number;
     }
@@ -166,10 +177,12 @@ service cloud.firestore {
       allow read: if isMemberOfGroupData(resource.data);
       allow create: if isSignedIn()
         && validGroup(groupId)
+        && ('currency' in request.resource.data)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.memberIds.hasAny([request.auth.uid]);
       allow update: if isMemberOfGroupData(resource.data)
-        && validGroup(groupId);
+        && validGroup(groupId)
+        && groupCurrencyUnchanged();
       allow delete: if isMemberOfGroupData(resource.data);
     }
 

@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { userService } from '../../services/userService';
 import { groupService } from '../../services/groupService';
 import type { GroupMember } from '../../models/Group';
 import type { CreateGroupScreenProps } from '../../navigation/types';
+import type { CurrencyCode } from '../../utils/currency';
 import Button from '../../components/Button';
 import GlassCard from '../../components/GlassCard';
 import Avatar from '../../components/Avatar';
@@ -14,10 +16,12 @@ import Icon from 'react-native-vector-icons/Ionicons';
 
 export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps) {
   const { user } = useAuth();
+  const { currency, options: currencyOptions } = useCurrency();
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const [groupName, setGroupName] = useState('');
+  const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>(currency);
   const [emailInput, setEmailInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [members, setMembers] = useState<GroupMember[]>(
@@ -78,6 +82,7 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
         members,
         memberIds: members.map(m => m.uid),
         balances: {},
+        currency: selectedCurrency,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -104,6 +109,41 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
             onChangeText={setGroupName}
             autoFocus
           />
+        </GlassCard>
+
+        <GlassCard style={styles.section} padding="lg">
+          <Text style={styles.label}>Currency</Text>
+          <Text style={styles.helpText}>Choose once for this group. It cannot be changed later.</Text>
+          <View style={styles.currencyGrid}>
+            {currencyOptions.map(option => {
+              const isSelected = selectedCurrency === option.code;
+              return (
+                <TouchableOpacity
+                  key={option.code}
+                  activeOpacity={0.72}
+                  onPress={() => setSelectedCurrency(option.code)}
+                  style={[
+                    styles.currencyOption,
+                    isSelected && styles.currencyOptionSelected,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.currencySymbol,
+                      isSelected && styles.currencySymbolSelected,
+                    ]}>
+                    {option.symbol}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.currencyCode,
+                      isSelected && styles.currencyCodeSelected,
+                    ]}>
+                    {option.code}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </GlassCard>
 
         <GlassCard style={styles.section} padding="lg">
@@ -177,6 +217,46 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   label: {
     ...typography.bodyBold,
     marginBottom: spacing.sm,
+  },
+  helpText: {
+    ...typography.caption,
+    marginBottom: spacing.md,
+  },
+  currencyGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  currencyOption: {
+    alignItems: 'center',
+    borderColor: colors.border,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    minWidth: 72,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surfaceAlt,
+  },
+  currencyOptionSelected: {
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primary,
+  },
+  currencySymbol: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  currencySymbolSelected: {
+    color: colors.primary,
+  },
+  currencyCode: {
+    ...typography.small,
+    marginTop: spacing.xs,
+    color: colors.textSecondary,
+  },
+  currencyCodeSelected: {
+    color: colors.primary,
+    fontWeight: '700',
   },
   input: {
     height: 52,

@@ -10,10 +10,12 @@ import {
 import { spacing, borderRadius, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { expenseService } from '../../services/expenseService';
 import { groupService } from '../../services/groupService';
 import type { Expense } from '../../models/Expense';
 import type { ActivityScreenProps } from '../../navigation/types';
+import type { CurrencyCode } from '../../utils/currency';
 import EmptyState from '../../components/EmptyState';
 import GlassCard from '../../components/GlassCard';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -55,10 +57,12 @@ function groupByDate(expenses: Expense[]): { title: string; data: Expense[] }[] 
 
 export default function ActivityScreen({ navigation }: ActivityScreenProps) {
   const { user } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const [activities, setActivities] = useState<Expense[]>([]);
+  const [groupCurrencies, setGroupCurrencies] = useState<Record<string, CurrencyCode>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -70,6 +74,12 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
       try {
         const groups = await groupService.getUserGroups(user.id);
         const groupIds = groups.map(g => g.id);
+        setGroupCurrencies(
+          groups.reduce<Record<string, CurrencyCode>>((acc, group) => {
+            acc[group.id] = group.currency || currency;
+            return acc;
+          }, {})
+        );
 
         expensesUnsubscribe = expenseService.subscribeToUserExpenses(groupIds, (data) => {
           setActivities(data);
@@ -86,7 +96,7 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
     return () => {
       if (expensesUnsubscribe) expensesUnsubscribe();
     };
-  }, [user]);
+  }, [currency, user]);
 
   const sections = groupByDate(activities);
 
@@ -117,6 +127,7 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
 
     const iconName = CATEGORY_ICON_MAP[item.category?.toLowerCase()] || 'ellipsis-horizontal-circle';
     const iconColor = color === colors.owes ? colors.owes : color === colors.owed ? colors.owed : colors.primary;
+    const itemCurrency = groupCurrencies[item.groupId] || currency;
 
     return (
       <TouchableOpacity
@@ -135,12 +146,12 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
             <View style={styles.info}>
               <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
               <Text style={styles.subtext} numberOfLines={1}>
-                {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ₹{item.amount.toFixed(2)}
+                {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid {formatAmount(item.amount, { currency: itemCurrency })}
               </Text>
             </View>
             <View style={styles.balance}>
               <Text style={[styles.amountLabel, { color }]}>{label}</Text>
-              <Text style={[styles.amountText, { color }]}>₹{amount.toFixed(2)}</Text>
+              <Text style={[styles.amountText, { color }]}>{formatAmount(amount, { currency: itemCurrency })}</Text>
             </View>
           </View>
         </GlassCard>

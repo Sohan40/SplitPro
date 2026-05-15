@@ -14,11 +14,11 @@ import EmptyState from '../../components/EmptyState';
 import GlassCard from '../../components/GlassCard';
 import { borderRadius, spacing, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { useTheme } from '../../context/ThemeContext';
 import AiInsightsSection from '../../features/ai/components/AiInsightsSection';
 import {
   calculateSpendAnalytics,
-  formatCurrency,
   getCurrentMonthKey,
   type SpendAnalyticsSummary,
 } from '../../features/analytics/calculateSpendAnalytics';
@@ -87,6 +87,7 @@ function hasSpendHistory(group: Group, expenses: Expense[]): boolean {
 export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysisScreenProps) {
   const { groupId, groupName, monthKey: initialMonthKey } = route.params;
   const { user } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const { theme, isDark } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
@@ -143,10 +144,11 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
     };
   }, [groupId]);
 
+  const groupCurrency = group?.currency || currency;
   const summary = useMemo<SpendAnalyticsSummary | null>(() => {
     if (!group) return null;
-    return calculateSpendAnalytics({ group, expenses, monthKey });
-  }, [expenses, group, monthKey]);
+    return calculateSpendAnalytics({ group, expenses, monthKey, currency: groupCurrency });
+  }, [expenses, group, groupCurrency, monthKey]);
 
   const hasAnySpend = group ? hasSpendHistory(group, expenses) : false;
   const currentUserStats = summary?.memberStats.find(member => member.uid === user?.id);
@@ -226,14 +228,14 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
         )}
 
         <View style={styles.metricGrid}>
-          {renderMetricCard(styles, colors, 'Total Spend', formatCurrency(summary.totalSpend), 'wallet-outline')}
+          {renderMetricCard(styles, colors, 'Total Spend', formatAmount(summary.totalSpend, { currency: groupCurrency }), 'wallet-outline')}
           {renderMetricCard(styles, colors, 'Expenses', `${summary.expenseCount}`, 'receipt-outline')}
           {renderMetricCard(styles, colors, 'Top Category', topCategory, 'pricetag-outline')}
           {renderMetricCard(
             styles,
             colors,
             'Your Net',
-            currentUserStats ? formatCurrency(currentUserStats.net) : 'N/A',
+            currentUserStats ? formatAmount(currentUserStats.net, { currency: groupCurrency }) : 'N/A',
             'person-circle-outline',
             currentUserStats && currentUserStats.net < 0 ? colors.owes : colors.owed,
           )}
@@ -277,13 +279,13 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
           <>
             <AnalyticsSection title="Overview Snapshot">
               <View style={styles.overviewGrid}>
-                {renderCompactStat(styles, colors, 'Total Spend', formatCurrency(summary.totalSpend), 'wallet-outline')}
+                {renderCompactStat(styles, colors, 'Total Spend', formatAmount(summary.totalSpend, { currency: groupCurrency }), 'wallet-outline')}
                 {renderCompactStat(styles, colors, 'Top Category', topCategory, 'pricetag-outline')}
                 {renderCompactStat(
                   styles,
                   colors,
                   'Highest Expense',
-                  highestExpense ? formatCurrency(highestExpense.amount) : 'None',
+                  highestExpense ? formatAmount(highestExpense.amount, { currency: groupCurrency }) : 'None',
                   'receipt-outline',
                 )}
               </View>
@@ -296,7 +298,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
                         Highest expense - {highestExpense.category} - Paid by {highestExpense.paidByName}
                       </Text>
                     </View>
-                    <Text style={styles.rowAmount}>{formatCurrency(highestExpense.amount)}</Text>
+                    <Text style={styles.rowAmount}>{formatAmount(highestExpense.amount, { currency: groupCurrency })}</Text>
                   </View>
                 </GlassCard>
               )}
@@ -314,7 +316,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
                   <GlassCard key={item.category} style={styles.rowCard} padding="sm">
                     <View style={styles.rowHeader}>
                       <Text style={styles.rowTitle}>{item.category}</Text>
-                      <Text style={styles.rowAmount}>{formatCurrency(item.amount)}</Text>
+                      <Text style={styles.rowAmount}>{formatAmount(item.amount, { currency: groupCurrency })}</Text>
                     </View>
                     <View style={styles.barTrack}>
                       <View style={[styles.barFill, { width: `${Math.max(item.percentage, 4)}%` }]} />
@@ -353,11 +355,11 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
                     <View style={styles.memberNameWrap}>
                       <Text style={styles.rowTitle} numberOfLines={1}>{member.displayName}</Text>
                       <Text style={styles.rowMeta}>
-                        Paid {formatCurrency(member.paid)} - Share {formatCurrency(member.owedShare)}
+                        Paid {formatAmount(member.paid, { currency: groupCurrency })} - Share {formatAmount(member.owedShare, { currency: groupCurrency })}
                       </Text>
                     </View>
                     <Text style={[styles.memberNet, { color: member.net < 0 ? colors.owes : colors.owed }]}>
-                      {formatCurrency(member.net)}
+                      {formatAmount(member.net, { currency: groupCurrency })}
                     </Text>
                   </View>
                 </GlassCard>
@@ -381,7 +383,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
                         ]}
                       />
                     </View>
-                    <Text style={styles.trendAmount}>{formatCurrency(item.amount)}</Text>
+                    <Text style={styles.trendAmount}>{formatAmount(item.amount, { currency: groupCurrency })}</Text>
                   </View>
                 ))}
               </GlassCard>
@@ -403,7 +405,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
                         <Text style={styles.rowMeta}>{expense.category} - Paid by {expense.paidByName}</Text>
                       </View>
                       <View style={styles.expenseAmountWrap}>
-                        <Text style={styles.rowAmount}>{formatCurrency(expense.amount)}</Text>
+                        <Text style={styles.rowAmount}>{formatAmount(expense.amount, { currency: groupCurrency })}</Text>
                         <Text style={styles.rowMeta}>{expense.date}</Text>
                       </View>
                     </View>

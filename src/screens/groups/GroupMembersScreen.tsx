@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, 
 import { spacing, borderRadius, shadows, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import { userService } from '../../services/userService';
 import { notificationService } from '../../services/notificationService';
@@ -17,6 +18,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
   const { groupId } = route.params;
   const { user } = useAuth();
   const { theme } = useTheme();
+  const { currency } = useCurrency();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const [group, setGroup] = useState<Group | null>(null);
@@ -174,7 +176,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
                   <Text style={styles.name}>{displayName}{isMe ? ' (You)' : ''}</Text>
                   <Text style={styles.email}>{item.email}</Text>
                 </View>
-                <BalanceBadge amount={balance} size="sm" />
+                <BalanceBadge amount={balance} currency={group?.currency || currency} size="sm" />
               </View>
             </GlassCard>
           );

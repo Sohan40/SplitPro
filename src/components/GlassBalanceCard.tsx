@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useCurrency } from '../context/CurrencyContext';
 import { useTheme } from '../context/ThemeContext';
 import { spacing, borderRadius } from './theme';
 
@@ -23,6 +24,7 @@ export default function GlassBalanceCard({
   onAddExpense,
 }: GlassBalanceCardProps) {
   const { theme } = useTheme();
+  const { formatAmount } = useCurrency();
   const { colors } = theme;
   const isPositive = netBalance >= 0;
   const primaryForeground = theme.dark ? colors.black : colors.white;
@@ -51,19 +53,19 @@ export default function GlassBalanceCard({
       <View style={styles.content}>
         <Text style={[styles.label, { color: colors.textSecondary }]}>Total Balance</Text>
         <Text style={[styles.amount, { color: isPositive ? colors.owed : colors.owes }]}>
-          {isPositive ? '+' : '-'}₹{Math.abs(netBalance).toFixed(2)}
+          {formatAmount(netBalance)}
         </Text>
 
         <View style={styles.statsRow}>
           <View style={styles.stat}>
-            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{'₹'}{totalOwes.toFixed(2)}</Text>
+            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatAmount(totalOwes)}</Text>
             <Text style={[styles.statLabel, { color: colors.owes }]}>
               you owe · {negativeGroupCount} groups
             </Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: dividerColor }]} />
           <View style={styles.stat}>
-            <Text style={[styles.statValue, { color: colors.owed }]}>{'₹'}{totalOwed.toFixed(2)}</Text>
+            <Text style={[styles.statValue, { color: colors.owed }]}>{formatAmount(totalOwed)}</Text>
             <Text style={[styles.statLabel, { color: colors.owed }]}>
               owed to you · {positiveGroupCount} groups
             </Text>
@@ -82,7 +84,7 @@ export default function GlassBalanceCard({
             onPress={onAddExpense}
             activeOpacity={0.8}
           >
-            <Text style={[styles.addBtnText, { color: colors.primary }]}>+ Add Expense</Text>
+            <Text style={[styles.addBtnText, { color: colors.primary }]}>Add Expense</Text>
           </TouchableOpacity>
         </View>
       </View>

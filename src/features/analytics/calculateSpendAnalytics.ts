@@ -152,13 +152,13 @@ function buildMonthlyTrend(expenses: Expense[], selectedMonthKey: string) {
     }));
 }
 
-function buildInsights(summary: Omit<SpendAnalyticsSummary, 'deterministicInsights'>): string[] {
+function buildInsights(summary: Omit<SpendAnalyticsSummary, 'deterministicInsights'>, currency = 'INR'): string[] {
   if (summary.expenseCount === 0) {
     return ['No group spending is recorded for this month yet.'];
   }
 
   const insights = [
-    `This month has ${summary.expenseCount} expenses totaling ${formatCurrency(summary.totalSpend)}.`,
+    `This month has ${summary.expenseCount} expenses totaling ${formatCurrency(summary.totalSpend, currency)}.`,
   ];
 
   const topCategory = summary.categoryBreakdown[0];
@@ -176,7 +176,7 @@ function buildInsights(summary: Omit<SpendAnalyticsSummary, 'deterministicInsigh
 
   const netReceiver = [...summary.memberStats].sort((a, b) => b.net - a.net)[0];
   if (netReceiver && netReceiver.net > 0) {
-    insights.push(`${netReceiver.displayName} is net positive by ${formatCurrency(netReceiver.net)}.`);
+    insights.push(`${netReceiver.displayName} is net positive by ${formatCurrency(netReceiver.net, currency)}.`);
   }
 
   return insights.slice(0, 4);
@@ -186,8 +186,9 @@ export function calculateSpendAnalytics(params: {
   group: Group;
   expenses: Expense[];
   monthKey?: string;
+  currency?: string;
 }): SpendAnalyticsSummary {
-  const { group, expenses, monthKey = getCurrentMonthKey() } = params;
+  const { group, expenses, monthKey = getCurrentMonthKey(), currency = 'INR' } = params;
   const groupExpenses = expenses
     .filter(expense => expense.groupId === group.id)
     .filter(isSpendExpense);
@@ -261,6 +262,6 @@ export function calculateSpendAnalytics(params: {
 
   return {
     ...summaryWithoutInsights,
-    deterministicInsights: buildInsights(summaryWithoutInsights),
+    deterministicInsights: buildInsights(summaryWithoutInsights, currency),
   };
 }

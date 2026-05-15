@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator }
 import { useTheme } from '../../context/ThemeContext';
 import { spacing, borderRadius, shadows } from '../../components/theme';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import type { Group } from '../../models/Group';
 import type { GroupListScreenProps } from '../../navigation/types';
@@ -14,6 +15,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 export default function GroupListScreen({ navigation }: GroupListScreenProps) {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const { currency } = useCurrency();
   const { colors } = theme;
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,7 @@ export default function GroupListScreen({ navigation }: GroupListScreenProps) {
               <Text style={[styles.groupMembers, { color: colors.textTertiary }]}>{item.members.length} members</Text>
             </View>
             <View style={styles.groupBalance}>
-              <BalanceBadge amount={myBalance} size="sm" />
+              <BalanceBadge amount={myBalance} currency={item.currency || currency} size="sm" />
             </View>
           </View>
         </Card>

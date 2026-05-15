@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { spacing, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import { expenseService } from '../../services/expenseService';
 import type { Group } from '../../models/Group';
@@ -13,9 +14,17 @@ import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import Icon from 'react-native-vector-icons/Ionicons';
 
+type DebtSection = {
+  title: string;
+  subtitle: string;
+  emptyText: string;
+  debts: Debt[];
+};
+
 export default function SettleUpScreen({ route, navigation }: SettleUpScreenProps) {
   const { groupId } = route.params;
   const { user } = useAuth();
+  const { currency, formatAmount } = useCurrency();
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
@@ -24,6 +33,30 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
   const [debts, setDebts] = useState<Debt[]>([]);
   const [loading, setLoading] = useState(true);
   const [settling, setSettling] = useState(false);
+  const debtSections = useMemo<DebtSection[]>(() => {
+    const userId = user?.id;
+
+    return [
+      {
+        title: 'You are owed',
+        subtitle: 'Payments you can collect',
+        emptyText: 'No one owes you right now.',
+        debts: userId ? debts.filter(debt => debt.to === userId) : [],
+      },
+      {
+        title: 'You owe',
+        subtitle: 'Payments you may need to make',
+        emptyText: 'You do not owe anyone right now.',
+        debts: userId ? debts.filter(debt => debt.from === userId) : [],
+      },
+      {
+        title: 'Others',
+        subtitle: 'Group settlements that do not involve you',
+        emptyText: 'No other member settlements are needed.',
+        debts: userId ? debts.filter(debt => debt.from !== userId && debt.to !== userId) : debts,
+      },
+    ];
+  }, [debts, user?.id]);
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -49,10 +82,11 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
 
   const handleSettle = async (debt: Debt) => {
     if (!group || !user) return;
+    const groupCurrency = group.currency || currency;
 
     Alert.alert(
       'Record Payment',
-      `Did a payment of ₹${debt.amount.toFixed(2)} actually happen?`,
+      `Did a payment of ${formatAmount(debt.amount, { currency: groupCurrency })} actually happen?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -102,19 +136,19 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
     );
   };
 
-  const renderDebt = ({ item }: { item: Debt }) => {
-    const fromMember = group?.members.find(m => m.uid === item.from);
-    const toMember = group?.members.find(m => m.uid === item.to);
+  const renderDebt = (debt: Debt) => {
+    const fromMember = group?.members.find(m => m.uid === debt.from);
+    const toMember = group?.members.find(m => m.uid === debt.to);
 
-    const isMeFrom = item.from === user?.id;
-    const isMeTo = item.to === user?.id;
+    const isMeFrom = debt.from === user?.id;
+    const isMeTo = debt.to === user?.id;
     const fromName = isMeFrom ? user?.name : (fromMember?.name || 'User');
     const toName = isMeTo ? user?.name : (toMember?.name || 'User');
 
     const isInvolved = isMeFrom || isMeTo;
 
     return (
-      <Card style={styles.debtCard} padding="md">
+      <Card key={`${debt.from}-${debt.to}`} style={styles.debtCard} padding="md">
         <View style={styles.debtRow}>
           <View style={styles.personInfo}>
             <Avatar name={fromName} size={32} />
@@ -122,7 +156,7 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
           </View>
           
           <View style={styles.arrowContainer}>
-            <Text style={styles.amount}>₹{item.amount.toFixed(2)}</Text>
+            <Text style={styles.amount}>{formatAmount(debt.amount, { currency: group?.currency || currency })}</Text>
             <Icon name="arrow-forward" size={20} color={colors.textTertiary} />
           </View>
 
@@ -135,7 +169,7 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
         {isInvolved && (
           <Button 
             title="Settle Up" 
-            onPress={() => handleSettle(item)} 
+            onPress={() => handleSettle(debt)}
             size="sm" 
             style={styles.settleButton}
             loading={settling}
@@ -151,17 +185,28 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={debts}
-        keyExtractor={(item) => `${item.from}-${item.to}`}
-        renderItem={renderDebt}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <Text style={styles.headerText}>
-            {debts.length > 0 ? 'Suggested settlements to balance everyone out:' : 'Everyone is settled up!'}
-          </Text>
-        }
-      />
+      <ScrollView contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false}>
+        {debts.length === 0 ? (
+          <Text style={styles.headerText}>Everyone is settled up!</Text>
+        ) : null}
+
+        {debtSections.map(section => (
+          <View key={section.title} style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>
+            </View>
+
+            {section.debts.length > 0 ? (
+              section.debts.map(renderDebt)
+            ) : (
+              <Card style={styles.emptyCard} padding="md" variant="flat">
+                <Text style={styles.emptyText}>{section.emptyText}</Text>
+              </Card>
+            )}
+          </View>
+        ))}
+      </ScrollView>
     </View>
   );
 }
@@ -178,14 +223,35 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   },
   listContent: {
     padding: spacing.xl,
+    paddingBottom: spacing.huge,
   },
   headerText: {
     ...typography.caption,
     marginBottom: spacing.lg,
     textAlign: 'center',
   },
+  section: {
+    marginBottom: spacing.xxl,
+  },
+  sectionHeader: {
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    ...typography.heading3,
+  },
+  sectionSubtitle: {
+    ...typography.caption,
+    marginTop: 2,
+  },
   debtCard: {
     marginBottom: spacing.md,
+  },
+  emptyCard: {
+    marginBottom: spacing.md,
+  },
+  emptyText: {
+    ...typography.caption,
+    textAlign: 'center',
   },
   debtRow: {
     flexDirection: 'row',
