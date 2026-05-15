@@ -53,6 +53,29 @@ jobs:
         env:
           FIREBASE_GOOGLE_SERVICE_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICE_JSON }}
 
+      - name: Prepare Android release signing
+        run: |
+          if [ -z "$ANDROID_UPLOAD_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "::error::Missing required Android release signing secrets."
+            exit 1
+          fi
+
+          printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 --decode > android/app/upload-key.jks
+
+          cat > android/keystore.properties <<EOF
+          storeFile=app/upload-key.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+
+          chmod 600 android/app/upload-key.jks android/keystore.properties
+        env:
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
       - name: Create assets folder
         run: mkdir -p android/app/src/main/assets
 
@@ -68,7 +91,7 @@ jobs:
         run: |
           npm install -g firebase-tools
 
-          firebase appdistribution:distribute android/app/build/outputs/apk/release/app-release.apk --app "1:98378274298:android:f765fe916d1d0a57b98043" --groups "Flatmates" --release-notes "v1.0.6 (Build 7): Added email verification for password signups, blocked unverified email login, and fixed first-login push registration."
+          firebase appdistribution:distribute android/app/build/outputs/apk/release/app-release.apk --app "${{ secrets.FIREBASE_APP_ID }}" --groups "Flatmates" --release-notes "v1.0.7 (Build 12): Refreshed auth, profile, and settings screens; added group-level currency selection; improved expenses, balances, and settle-up views; updated app icons; added AI Subscriptions."
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_CI_TOKEN }}
 
