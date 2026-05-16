@@ -6,6 +6,13 @@ const { createRequestSpendInsightFunction } = require("./src/ai/requestSpendInsi
 const { createHandlePlayRtdnFunction } = require("./src/billing/handlePlayRtdn");
 const { createReconcileActiveSubscriptionsFunction } = require("./src/billing/reconcileActiveSubscriptions");
 const { createVerifyGooglePlayPurchaseFunction } = require("./src/billing/verifyGooglePlayPurchase");
+const { createCreateQrInviteTokenFunction } = require("./src/qr/createQrInviteToken");
+const { createResolveQrInviteTokenFunction } = require("./src/qr/resolveQrInviteToken");
+const { createAddMemberByQrTokenFunction } = require("./src/qr/addMemberByQrToken");
+const {
+  createAddMemberByEmailFunction,
+  createResolveUserByEmailFunction,
+} = require("./src/groups/userEmailLookup");
 
 initializeApp();
 
@@ -16,6 +23,11 @@ exports.requestSpendInsight = createRequestSpendInsightFunction(db);
 exports.verifyGooglePlayPurchase = createVerifyGooglePlayPurchaseFunction(db);
 exports.handlePlayRtdn = createHandlePlayRtdnFunction(db);
 exports.reconcileActiveSubscriptions = createReconcileActiveSubscriptionsFunction(db);
+exports.createQrInviteToken = createCreateQrInviteTokenFunction(db);
+exports.resolveQrInviteToken = createResolveQrInviteTokenFunction(db);
+exports.addMemberByQrToken = createAddMemberByQrTokenFunction(db);
+exports.resolveUserByEmail = createResolveUserByEmailFunction(db);
+exports.addMemberByEmail = createAddMemberByEmailFunction(db);
 
 /**
  * Cloud Function: sendPushOnNotificationCreate

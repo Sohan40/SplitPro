@@ -1,5 +1,6 @@
 import { db } from './firebase';
 import type { Group } from '../models/Group';
+import { callAuthenticatedFunction } from './callableService';
 
 const GROUPS_COLLECTION = 'groups';
 
@@ -95,6 +96,17 @@ export const groupService = {
       members: [...groupData.members, user],
       [`balances.${user.uid}`]: 0,
       updatedAt: Date.now(),
+    });
+  },
+
+  /**
+   * Add a member by email through the backend. This avoids client-side reads of
+   * other users' private profile documents.
+   */
+  async addMemberToGroupByEmail(groupId: string, email: string): Promise<{ displayName: string }> {
+    return callAuthenticatedFunction<{ groupId: string; email: string }, { displayName: string }>('addMemberByEmail', {
+      groupId,
+      email: email.trim().toLowerCase(),
     });
   },
 

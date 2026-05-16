@@ -1,7 +1,10 @@
 import { db } from './firebase';
 import type { User } from '../models/User';
+import { callAuthenticatedFunction } from './callableService';
 
 const USERS_COLLECTION = 'users';
+
+type UserSearchResult = Pick<User, 'id' | 'name' | 'email' | 'photoUrl'>;
 
 type ClientWritableUserProfile = Pick<
   User,
@@ -52,17 +55,32 @@ export const userService = {
   },
 
   /**
-   * Search users by email (exact match for MVP)
+   * Search users by email through a callable function. Client-side reads of
+   * other users' profile documents are blocked by Firestore Security Rules.
    */
-  async getUserByEmail(email: string): Promise<User | null> {
-    const snapshot = await db
-      .collection(USERS_COLLECTION)
-      .where('email', '==', email.toLowerCase())
-      .limit(1)
-      .get();
+  async getUserByEmail(email: string): Promise<UserSearchResult | null> {
+    try {
+      const data = await callAuthenticatedFunction<{ email: string }, {
+        uid: string;
+        name: string;
+        email: string;
+        photoUrl: string | null;
+      }>('resolveUserByEmail', {
+        email: email.trim().toLowerCase(),
+      });
 
-    if (snapshot.empty) return null;
-    return snapshot.docs[0].data() as User;
+      return {
+        id: data.uid,
+        name: data.name,
+        email: data.email,
+        photoUrl: data.photoUrl,
+      };
+    } catch (error: any) {
+      if (error?.code === 'functions/not-found' || error?.code === 'not-found') {
+        return null;
+      }
+      throw error;
+    }
   },
 
   /**

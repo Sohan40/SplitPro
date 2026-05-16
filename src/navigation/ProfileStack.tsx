@@ -6,6 +6,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import type { ThemeColors } from '../components/theme';
 import { useTheme } from '../context/ThemeContext';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import MyQrCodeScreen from '../screens/profile/MyQrCodeScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
 import UpgradeScreen from '../screens/upgrade/UpgradeScreen';
 import type { ProfileStackParamList } from './types';
@@ -63,6 +64,7 @@ export default function ProfileStack() {
         })}
       />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
+      <Stack.Screen name="MyQrCode" component={MyQrCodeScreen} options={{ title: 'My QR Code' }} />
       <Stack.Screen name="UpgradeAi" component={UpgradeScreen} options={{ title: 'SplitPro AI' }} />
     </Stack.Navigator>
   );

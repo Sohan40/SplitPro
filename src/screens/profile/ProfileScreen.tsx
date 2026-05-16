@@ -152,6 +152,22 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             </Text>
           </View>
 
+          {/* My QR Code */}
+          <TouchableOpacity
+            style={styles.qrCodeButton}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('MyQrCode')}
+          >
+            <View style={[styles.qrCodeIcon, { backgroundColor: colors.primaryLight }]}>
+              <Icon name="qr-code-outline" size={20} color={colors.primary} />
+            </View>
+            <View style={styles.qrCodeCopy}>
+              <Text style={styles.qrCodeTitle}>My QR Code</Text>
+              <Text style={styles.qrCodeSubtitle}>Let others scan to add you to groups</Text>
+            </View>
+            <Icon name="chevron-forward" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+
           <View style={styles.balanceHero}>
             <View>
               <Text style={styles.balanceLabel}>Total Balance</Text>
@@ -378,6 +394,34 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     marginTop: 2,
     maxWidth: '100%',
     textAlign: 'center',
+  },
+  qrCodeButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceContainer,
+    borderColor: colors.borderLight,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+    padding: spacing.lg,
+  },
+  qrCodeIcon: {
+    alignItems: 'center',
+    borderRadius: 16,
+    height: 40,
+    justifyContent: 'center',
+    marginRight: spacing.md,
+    width: 40,
+  },
+  qrCodeCopy: {
+    flex: 1,
+  },
+  qrCodeTitle: {
+    ...typography.bodyBold,
+  },
+  qrCodeSubtitle: {
+    ...typography.caption,
+    marginTop: 2,
   },
   balanceHero: {
     alignItems: 'center',

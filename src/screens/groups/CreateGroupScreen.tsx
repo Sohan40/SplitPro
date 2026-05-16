@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -27,7 +28,26 @@ import {
   useAuthPalette,
 } from '../auth/AuthScreenPrimitives';
 
-export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps) {
+function getAddMemberErrorMessage(error: any): string {
+  const code = typeof error?.code === 'string' ? error.code : '';
+
+  if (code.includes('unauthenticated')) {
+    return 'Your sign-in session expired. Please sign in again and retry.';
+  }
+  if (code.includes('not-found')) {
+    return 'No user found with that email.';
+  }
+  if (code.includes('invalid-argument')) {
+    return 'Enter a valid email address.';
+  }
+  if (code.includes('unavailable')) {
+    return 'Connection error. Please check your network and try again.';
+  }
+
+  return 'Failed to search for user.';
+}
+
+export default function CreateGroupScreen({ navigation, route }: CreateGroupScreenProps) {
   const { user } = useAuth();
   const { currency, options: currencyOptions } = useCurrency();
   const { palette, isDark } = useAuthPalette();
@@ -35,12 +55,14 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
   const scrollRef = useRef<ScrollView | null>(null);
   const memberSectionY = useRef(0);
   const memberInputFocused = useRef(false);
+  const handledScannedAtRef = useRef<number | undefined>(undefined);
   const [groupName, setGroupName] = useState('');
   const [selectedCurrency, setSelectedCurrency] = useState<CurrencyCode>(currency);
   const [currencyDropdownOpen, setCurrencyDropdownOpen] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [keyboardInset, setKeyboardInset] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [addingMember, setAddingMember] = useState(false);
   const [members, setMembers] = useState<GroupMember[]>(
     user ? [{ uid: user.id, name: user.name, email: user.email, photoUrl: user.photoUrl || null }] : []
   );
@@ -82,6 +104,30 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
     };
   }, [scrollMemberInputIntoView]);
 
+  useEffect(() => {
+    const scannedAt = route.params?.scannedAt;
+    const scannedMember = route.params?.scannedMember;
+
+    if (!scannedAt || !scannedMember || handledScannedAtRef.current === scannedAt) {
+      return;
+    }
+
+    handledScannedAtRef.current = scannedAt;
+    const alreadyAdded = members.some(member => member.uid === scannedMember.uid);
+
+    if (alreadyAdded) {
+      Alert.alert('Already Added', 'This member is already added.');
+    } else {
+      setMembers(previousMembers => [...previousMembers, scannedMember]);
+      Alert.alert('Member Added', `${scannedMember.name} has been added to this group.`);
+    }
+
+    navigation.setParams({
+      scannedAt: undefined,
+      scannedMember: undefined,
+    });
+  }, [members, navigation, route.params?.scannedAt, route.params?.scannedMember]);
+
   const handleAddMember = async () => {
     const normalizedEmail = emailInput.trim().toLowerCase();
     if (!normalizedEmail) return;
@@ -99,8 +145,15 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
     }
 
     try {
+      setAddingMember(true);
       const foundUser = await userService.getUserByEmail(normalizedEmail);
       if (foundUser) {
+        if (members.some(member => member.uid === foundUser.id)) {
+          Alert.alert('Already Added', 'This member is already added.');
+          setEmailInput('');
+          return;
+        }
+
         setMembers([...members, {
           uid: foundUser.id,
           name: foundUser.name,
@@ -109,12 +162,24 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
         }]);
         setEmailInput('');
       } else {
-        Alert.alert('Not Found', 'No user found with that email. Please ensure their profile is in the Firestore Database.');
+        Alert.alert('Not Found', 'No user found with that email address.');
       }
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'Failed to search for user.');
+      Alert.alert('Error', getAddMemberErrorMessage(error));
+    } finally {
+      setAddingMember(false);
     }
+  };
+
+  const handleScanQr = () => {
+    Keyboard.dismiss();
+    setCurrencyDropdownOpen(false);
+    memberInputFocused.current = false;
+    navigation.navigate('ScanQrCode', {
+      groupName: groupName.trim() || 'New group',
+      mode: 'pickMember',
+    });
   };
 
   const handleRemoveMember = (uid: string) => {
@@ -170,13 +235,6 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
           keyboardShouldPersistTaps="always"
           overScrollMode="never"
           showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <Text style={styles.heroTitle}>
-              Create{'\n'}
-              <Text style={styles.heroAccent}>Group</Text>
-            </Text>
-          </View>
-
           <View style={styles.form}>
             <AuthInput
               autoFocus
@@ -246,28 +304,45 @@ export default function CreateGroupScreen({ navigation }: CreateGroupScreenProps
               }}
               style={styles.fieldBlock}>
               <Text style={styles.label}>Members</Text>
-              <View style={styles.memberInputRow}>
-                <AuthInput
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  iconName="mail-outline"
-                  onChangeText={setEmailInput}
-                  onBlur={() => {
-                    memberInputFocused.current = false;
-                  }}
-                  onFocus={() => {
-                    memberInputFocused.current = true;
-                    setCurrencyDropdownOpen(false);
-                    scrollMemberInputIntoView();
-                  }}
-                  onSubmitEditing={handleAddMember}
-                  placeholder="Friend's email"
-                  returnKeyType="done"
-                  value={emailInput}
-                  wrapperStyle={styles.memberInput}
-                />
-                <TouchableOpacity activeOpacity={0.8} onPress={handleAddMember} style={styles.addButton}>
-                  <Icon name="add" size={25} color={palette.primaryText} />
+              <AuthInput
+                autoCapitalize="none"
+                keyboardType="email-address"
+                iconName="mail-outline"
+                onChangeText={setEmailInput}
+                onBlur={() => {
+                  memberInputFocused.current = false;
+                }}
+                onFocus={() => {
+                  memberInputFocused.current = true;
+                  setCurrencyDropdownOpen(false);
+                  scrollMemberInputIntoView();
+                }}
+                onSubmitEditing={handleAddMember}
+                placeholder="Friend's email"
+                returnKeyType="done"
+                value={emailInput}
+              />
+
+              <View style={styles.memberActionRow}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  disabled={addingMember}
+                  onPress={handleAddMember}
+                  style={[styles.memberActionButton, styles.emailActionButton]}>
+                  {addingMember ? (
+                    <ActivityIndicator color={palette.primaryText} size="small" />
+                  ) : (
+                    <Icon name="mail-outline" size={18} color={palette.primaryText} />
+                  )}
+                  <Text style={styles.emailActionText}>Add by email</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={handleScanQr}
+                  style={[styles.memberActionButton, styles.qrActionButton]}>
+                  <Icon name="qr-code-outline" size={18} color={palette.primary} />
+                  <Text style={styles.qrActionText}>Scan QR</Text>
                 </TouchableOpacity>
               </View>
 
@@ -322,21 +397,7 @@ const createStyles = (palette: AuthPalette) => StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 28,
-  },
-  header: {
-    marginBottom: 28,
-    paddingTop: 8,
-  },
-  heroTitle: {
-    color: palette.inputText,
-    fontSize: 36,
-    fontWeight: '700',
-    letterSpacing: 0,
-    lineHeight: 43,
-  },
-  heroAccent: {
-    color: palette.primary,
+    paddingTop: 20,
   },
   form: {
     paddingBottom: 12,
@@ -433,25 +494,41 @@ const createStyles = (palette: AuthPalette) => StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
   },
-  memberInputRow: {
-    alignItems: 'flex-start',
+  memberActionRow: {
     flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
   },
-  memberInput: {
-    flex: 1,
-    marginBottom: 0,
-  },
-  addButton: {
+  memberActionButton: {
     alignItems: 'center',
-    backgroundColor: palette.primary,
+    flex: 1,
     borderRadius: 14,
-    height: 56,
+    flexDirection: 'row',
+    gap: 8,
     justifyContent: 'center',
-    marginLeft: 10,
-    width: 56,
+    minHeight: 48,
+    paddingHorizontal: 12,
+  },
+  emailActionButton: {
+    backgroundColor: palette.primary,
+  },
+  qrActionButton: {
+    backgroundColor: palette.accentSoft,
+    borderColor: palette.border,
+    borderWidth: 1,
+  },
+  emailActionText: {
+    color: palette.primaryText,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  qrActionText: {
+    color: palette.primary,
+    fontSize: 13,
+    fontWeight: '700',
   },
   membersList: {
-    marginTop: 14,
+    marginTop: 16,
   },
   memberRow: {
     alignItems: 'center',

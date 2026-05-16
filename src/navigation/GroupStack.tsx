@@ -8,6 +8,7 @@ import AddExpenseScreen from '../screens/expenses/AddExpenseScreen';
 import ExpenseDetailScreen from '../screens/expenses/ExpenseDetailScreen';
 import SettleUpScreen from '../screens/groups/SettleUpScreen';
 import GroupMembersScreen from '../screens/groups/GroupMembersScreen';
+import ScanQrScreen from '../screens/groups/ScanQrScreen';
 import SpendAnalysisScreen from '../screens/analytics/SpendAnalysisScreen';
 import UpgradeScreen from '../screens/upgrade/UpgradeScreen';
 import type { GroupStackParamList } from './types';
@@ -29,7 +30,7 @@ export default function GroupStack() {
         animation: 'slide_from_right',
       }}>
       <Stack.Screen name="GroupList" component={GroupListScreen} options={{ title: 'Groups' }} />
-      <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'New Group' }} />
+      <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create Group' }} />
       <Stack.Screen
         name="GroupDetail"
         component={GroupDetailScreen}
@@ -46,6 +47,7 @@ export default function GroupStack() {
       <Stack.Screen name="ExpenseDetail" component={ExpenseDetailScreen} options={{ title: 'Expense Details' }} />
       <Stack.Screen name="SettleUp" component={SettleUpScreen} options={{ title: 'Settle Up' }} />
       <Stack.Screen name="GroupMembers" component={GroupMembersScreen} options={{ title: 'Group Members' }} />
+      <Stack.Screen name="ScanQrCode" component={ScanQrScreen} options={{ title: 'Scan QR Code', headerShown: false }} />
       <Stack.Screen name="SpendAnalysis" component={SpendAnalysisScreen} options={{ title: 'Spend Analysis' }} />
       <Stack.Screen name="UpgradeAi" component={UpgradeScreen} options={{ title: 'SplitPro AI' }} />
     </Stack.Navigator>

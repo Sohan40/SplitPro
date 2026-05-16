@@ -6,13 +6,34 @@ import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import { userService } from '../../services/userService';
-import { notificationService } from '../../services/notificationService';
 import type { Group } from '../../models/Group';
 import GlassCard from '../../components/GlassCard';
 import Avatar from '../../components/Avatar';
 import BalanceBadge from '../../components/BalanceBadge';
 import Icon from 'react-native-vector-icons/Ionicons';
 import Button from '../../components/Button';
+
+function getMemberInviteErrorMessage(error: any): string {
+  const code = typeof error?.code === 'string' ? error.code : '';
+
+  if (code.includes('unauthenticated')) {
+    return 'Your sign-in session expired. Please sign out, sign in again, and try once more.';
+  }
+  if (code.includes('already-exists')) {
+    return 'This user is already a member of the group.';
+  }
+  if (code.includes('permission-denied')) {
+    return "You don't have permission to add members to this group.";
+  }
+  if (code.includes('not-found')) {
+    return 'No user found with this email address.';
+  }
+  if (code.includes('invalid-argument')) {
+    return 'Enter a valid email address.';
+  }
+
+  return error?.message || 'Failed to add member.';
+}
 
 export default function GroupMembersScreen({ route, navigation }: any) {
   const { groupId } = route.params;
@@ -52,6 +73,10 @@ export default function GroupMembersScreen({ route, navigation }: any) {
 
   const handleAddMember = async () => {
     if (!email.trim()) return;
+    if (!user) {
+      Alert.alert('Sign In Required', 'Please sign in again before adding members.');
+      return;
+    }
     
     try {
       setSearching(true);
@@ -73,29 +98,14 @@ export default function GroupMembersScreen({ route, navigation }: any) {
             onPress: async () => {
               try {
                 setAdding(true);
-                await groupService.addMemberToGroup(groupId, {
-                  uid: foundUser.id,
-                  name: foundUser.name,
-                  email: foundUser.email
-                });
-                
-                // Fire-and-forget: triggers Cloud Function → push notification
-                if (user && group) {
-                  notificationService.createNotification({
-                    userId: foundUser.id,
-                    title: 'Added to Group',
-                    body: `${user.name} added you to ${group.name}`,
-                    type: 'group_add',
-                    data: { groupId }
-                  }).catch((err: any) => console.warn('Notification creation failed:', err));
-                }
-                
+                await groupService.addMemberToGroupByEmail(groupId, foundUser.email);
+
                 Alert.alert('Success', `${foundUser.name} has been added.`);
                 setIsModalVisible(false);
                 setEmail('');
                 fetchGroup(); // Refresh list
               } catch (err: any) {
-                Alert.alert('Error', err.message || 'Failed to add member');
+                Alert.alert('Error', getMemberInviteErrorMessage(err));
               } finally {
                 setAdding(false);
               }
@@ -105,7 +115,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
       );
     } catch (error) {
       console.error(error);
-      Alert.alert('Error', 'An error occurred during search.');
+      Alert.alert('Error', getMemberInviteErrorMessage(error));
     } finally {
       setSearching(false);
     }
@@ -209,12 +219,38 @@ export default function GroupMembersScreen({ route, navigation }: any) {
         onRequestClose={() => setIsModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <GlassCard style={styles.modalContent} padding="lg" gradientDir="diagonal">
+          <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Add New Member</Text>
               <TouchableOpacity onPress={() => setIsModalVisible(false)}>
                 <Icon name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
+            </View>
+
+            {/* Scan QR option */}
+            <TouchableOpacity
+              style={[styles.qrScanOption, { backgroundColor: colors.primaryLight, borderColor: colors.borderLight }]}
+              activeOpacity={0.7}
+              onPress={() => {
+                setIsModalVisible(false);
+                navigation.navigate('ScanQrCode', {
+                  groupId,
+                  groupName: group?.name || 'Group',
+                });
+              }}
+            >
+              <Icon name="qr-code-outline" size={22} color={colors.primary} />
+              <View style={styles.qrScanCopy}>
+                <Text style={[styles.qrScanTitle, { color: colors.primary }]}>Scan QR Code</Text>
+                <Text style={styles.qrScanSubtitle}>Instantly add by scanning their QR</Text>
+              </View>
+              <Icon name="chevron-forward" size={18} color={colors.primary} />
+            </TouchableOpacity>
+
+            <View style={styles.orDivider}>
+              <View style={[styles.orLine, { backgroundColor: colors.border }]} />
+              <Text style={[styles.orText, { color: colors.textTertiary }]}>or</Text>
+              <View style={[styles.orLine, { backgroundColor: colors.border }]} />
             </View>
 
             <Text style={styles.modalLabel}>Enter friend's email address</Text>
@@ -235,7 +271,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
               loading={searching || adding}
               style={styles.modalButton}
             />
-          </GlassCard>
+          </View>
         </View>
       </Modal>
     </View>
@@ -310,7 +346,13 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     padding: spacing.xl,
   },
   modalContent: {
+    backgroundColor: colors.surface,
+    borderColor: colors.borderStrong,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    padding: spacing.xl,
     width: '100%',
+    ...shadows.lg,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -337,5 +379,38 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   },
   modalButton: {
     marginTop: spacing.sm,
+  },
+  qrScanOption: {
+    alignItems: 'center',
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+    padding: spacing.md,
+  },
+  qrScanCopy: {
+    flex: 1,
+    marginLeft: spacing.md,
+  },
+  qrScanTitle: {
+    ...typography.bodyBold,
+  },
+  qrScanSubtitle: {
+    ...typography.small,
+    marginTop: 2,
+  },
+  orDivider: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: spacing.md,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+  },
+  orText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginHorizontal: spacing.md,
   },
 });

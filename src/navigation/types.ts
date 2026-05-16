@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps, NavigatorScreenParams } from '@react-navigation/native';
+import type { GroupMember } from '../models/Group';
 
 // Auth Stack
 export type AuthStackParamList = {
@@ -11,13 +12,18 @@ export type AuthStackParamList = {
 // Group Stack (nested in Groups tab)
 export type GroupStackParamList = {
   GroupList: undefined;
-  CreateGroup: undefined;
+  CreateGroup: { scannedMember?: GroupMember; scannedAt?: number } | undefined;
   GroupDetail: { groupId: string; groupName: string };
   GroupMembers: { groupId: string };
   AddExpense: { groupId: string; groupName: string; expenseId?: string };
   ExpenseDetail: { groupId: string; expenseId: string };
   SettleUp: { groupId: string; groupName: string };
   SpendAnalysis: { groupId: string; groupName: string; monthKey?: string };
+  ScanQrCode: {
+    groupId?: string;
+    groupName: string;
+    mode?: 'addToGroup' | 'pickMember';
+  };
   UpgradeAi: undefined;
 };
 
@@ -25,6 +31,7 @@ export type GroupStackParamList = {
 export type ProfileStackParamList = {
   ProfileMain: undefined;
   Settings: undefined;
+  MyQrCode: undefined;
   UpgradeAi: undefined;
 };
 
@@ -67,3 +74,5 @@ export type ActivityScreenProps = CompositeScreenProps<
 
 export type ProfileScreenProps = NativeStackScreenProps<ProfileStackParamList, 'ProfileMain'>;
 export type SettingsScreenProps = NativeStackScreenProps<ProfileStackParamList, 'Settings'>;
+export type MyQrCodeScreenProps = NativeStackScreenProps<ProfileStackParamList, 'MyQrCode'>;
+export type ScanQrScreenProps = NativeStackScreenProps<GroupStackParamList, 'ScanQrCode'>;

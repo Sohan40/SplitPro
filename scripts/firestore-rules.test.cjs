@@ -344,6 +344,29 @@ async function main() {
     await runTest('member can delete expense', async () => {
       await assertSucceeds(deleteDoc(doc(bobDb, 'expenses/expense-1')));
     });
+
+    await runTest('client cannot read qrInvites', async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        await setDoc(doc(db, 'qrInvites/token-hash-1'), {
+          uid: 'alice',
+          tokenHash: 'token-hash-1',
+          createdAt: 1710000000000,
+          expiresAt: 1710000000000,
+        });
+      });
+
+      await assertFails(getDoc(doc(aliceDb, 'qrInvites/token-hash-1')));
+    });
+
+    await runTest('client cannot write qrInvites', async () => {
+      await assertFails(setDoc(doc(aliceDb, 'qrInvites/token-hash-2'), {
+        uid: 'alice',
+        tokenHash: 'token-hash-2',
+        createdAt: 1710000000000,
+        expiresAt: 1710000000000,
+      }));
+    });
   } finally {
     await testEnv.cleanup();
   }

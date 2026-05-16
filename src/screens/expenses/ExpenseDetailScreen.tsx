@@ -15,6 +15,24 @@ import Avatar from '../../components/Avatar';
 import CategoryIcon from '../../components/CategoryIcon';
 import Icon from 'react-native-vector-icons/Ionicons';
 
+function getExpenseCreatorName(expense: Expense, group: Group | null, currentUserId?: string): string {
+  if (expense.createdBy === currentUserId) {
+    return 'you';
+  }
+
+  const groupMemberName = group?.members.find(member => member.uid === expense.createdBy)?.name;
+  if (groupMemberName) {
+    return groupMemberName;
+  }
+
+  if (expense.paidBy.uid === expense.createdBy && expense.paidBy.name) {
+    return expense.paidBy.name;
+  }
+
+  const participantName = expense.participants.find(participant => participant.uid === expense.createdBy)?.name;
+  return participantName || 'someone';
+}
+
 export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetailScreenProps) {
   const { expenseId, groupId } = route.params;
   const { user } = useAuth();
@@ -92,7 +110,7 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
   useEffect(() => {
     groupService.getGroup(groupId)
       .then(setGroup)
-      .catch(error => console.warn('Failed to load group currency:', error));
+      .catch(error => console.warn('Failed to load group details:', error));
   }, [groupId]);
 
   useEffect(() => {
@@ -137,6 +155,7 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
     );
   }
   const expenseCurrency = group?.currency || currency;
+  const creatorName = getExpenseCreatorName(expense, group, user?.id);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -145,7 +164,7 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
         <Text style={styles.description}>{expense.description}</Text>
         <Text style={styles.amount}>{formatAmount(expense.amount, { currency: expenseCurrency })}</Text>
         <Text style={styles.date}>
-          Added by {expense.createdBy === user?.id ? 'you' : 'someone'} on{' '}
+          Added by {creatorName} on{' '}
           {new Date(expense.createdAt).toLocaleDateString()}
         </Text>
       </View>

@@ -70,6 +70,29 @@ jest.mock('@react-native-firebase/messaging', () => jest.fn(() => ({
   getInitialNotification: jest.fn(),
 })));
 
+jest.mock('@react-native-firebase/functions', () => jest.fn(() => ({
+  httpsCallable: jest.fn(() => jest.fn()),
+})));
+
+jest.mock('react-native-vision-camera', () => ({
+  useCameraPermission: jest.fn(() => ({
+    hasPermission: true,
+    requestPermission: jest.fn(async () => true),
+  })),
+}));
+
+jest.mock('react-native-vision-camera-barcode-scanner', () => {
+  const React = require('react');
+  return {
+    CodeScanner: jest.fn(() => React.createElement(React.Fragment, null)),
+  };
+});
+
+jest.mock('react-native-qrcode-svg', () => {
+  const React = require('react');
+  return jest.fn(() => React.createElement(React.Fragment, null));
+});
+
 jest.mock('react-native-iap', () => ({
   ErrorCode: {
     UserCancelled: 'user-cancelled',
