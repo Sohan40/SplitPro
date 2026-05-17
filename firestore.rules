@@ -161,6 +161,55 @@ service cloud.firestore {
         );
     }
 
+    function notificationFieldsAreSafe() {
+      return request.resource.data.keys().hasOnly([
+        'id',
+        'userId',
+        'title',
+        'body',
+        'type',
+        'read',
+        'createdAt',
+        'data'
+      ]);
+    }
+
+    function validNotificationData() {
+      return request.resource.data.data is map
+        && request.resource.data.data.keys().hasOnly(['groupId', 'expenseId'])
+        && request.resource.data.data.groupId is string
+        && request.resource.data.data.groupId.size() > 0
+        && (!('expenseId' in request.resource.data.data)
+          || request.resource.data.data.expenseId is string);
+    }
+
+    function validNotification(notificationId) {
+      return notificationFieldsAreSafe()
+        && request.resource.data.id == notificationId
+        && request.resource.data.userId is string
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 80
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0
+        && request.resource.data.body.size() <= 240
+        && request.resource.data.type in ['expense', 'group_add', 'general']
+        && request.resource.data.read is bool
+        && request.resource.data.read == false
+        && request.resource.data.createdAt is number
+        && validNotificationData();
+    }
+
+    function canCreateGroupNotification(notificationId) {
+      return isSignedIn()
+        && validNotification(notificationId)
+        && isGroupMember(request.resource.data.data.groupId)
+        && isGroupMemberUid(
+          request.resource.data.data.groupId,
+          request.resource.data.userId
+        );
+    }
+
     match /users/{uid} {
       allow read: if isSelf(uid);
       allow create: if isSelf(uid)
@@ -196,6 +245,17 @@ service cloud.firestore {
         && request.resource.data.groupId == resource.data.groupId
         && request.resource.data.id == expenseId;
       allow delete: if isGroupMember(resource.data.groupId);
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn()
+        && resource.data.userId == request.auth.uid;
+      allow create: if canCreateGroupNotification(notificationId);
+      allow update: if isSignedIn()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read == true;
+      allow delete: if false;
     }
 
     match /groups/{groupId}/aiInsights/{insightId} {

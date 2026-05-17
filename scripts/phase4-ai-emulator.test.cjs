@@ -191,6 +191,23 @@ async function seedFirestore(db, users) {
     createdAt: Date.UTC(2026, 4, 6, 12, 0, 0),
     updatedAt: Date.UTC(2026, 4, 6, 12, 0, 0),
   });
+
+  await db.collection('expenses').doc('expense-ai-3').set({
+    id: 'expense-ai-3',
+    groupId: 'group-ai-test',
+    description: 'Local transport',
+    amount: 500,
+    category: 'transport',
+    paidBy: { uid: users.entitled.uid, name: 'Entitled Member' },
+    splitType: 'equal',
+    participants: [
+      { uid: users.free.uid, name: 'Free Member', amount: 250 },
+      { uid: users.entitled.uid, name: 'Entitled Member', amount: 250 },
+    ],
+    createdBy: users.entitled.uid,
+    createdAt: Date.UTC(2026, 4, 8, 12, 0, 0),
+    updatedAt: Date.UTC(2026, 4, 8, 12, 0, 0),
+  });
 }
 
 function getResult(call) {

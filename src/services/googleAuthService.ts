@@ -20,6 +20,29 @@ export function configureGoogleSignIn() {
 }
 
 /**
+ * Clears the selected Google account for normal logout.
+ * Firebase sign-out should still complete if this cleanup fails.
+ */
+export async function signOutFromGoogle(): Promise<void> {
+  try {
+    await GoogleSignin.signOut();
+  } catch (error) {
+    console.warn('Failed to sign out from Google:', error);
+  }
+}
+
+/**
+ * Revokes Google access for destructive disconnect/delete-account flows.
+ */
+export async function revokeGoogleAccess(): Promise<void> {
+  try {
+    await GoogleSignin.revokeAccess();
+  } catch (error) {
+    console.warn('Failed to revoke Google access:', error);
+  }
+}
+
+/**
  * Sign in with Google and authenticate with Firebase.
  * Creates a Firestore user profile if one doesn't already exist.
  */

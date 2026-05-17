@@ -18,6 +18,7 @@ import {
 } from '../services/requestSpendInsight';
 import type {
   AiFeature,
+  AiInsight,
   AiRequestErrorCode,
   AiUsageSnapshot,
   RequestSpendInsightResult,
@@ -45,25 +46,48 @@ type FriendlyError = {
   showUpgrade: boolean;
 };
 
+type InsightListKey =
+  | 'keyInsights'
+  | 'unusualPatterns'
+  | 'memberInsights'
+  | 'budgetSuggestions'
+  | 'settlementSuggestions'
+  | 'nextActions';
+
+type InsightResultSection = {
+  key: InsightListKey;
+  title: string;
+  icon: string;
+};
+
 const QUESTION_LIMIT = 300;
+
+const RESULT_SECTIONS: InsightResultSection[] = [
+  { key: 'keyInsights', title: 'Key insights', icon: 'sparkles-outline' },
+  { key: 'unusualPatterns', title: 'Spending patterns', icon: 'pulse-outline' },
+  { key: 'memberInsights', title: 'Member insights', icon: 'people-outline' },
+  { key: 'budgetSuggestions', title: 'Suggestions', icon: 'bulb-outline' },
+  { key: 'settlementSuggestions', title: 'Settlement tips', icon: 'swap-horizontal-outline' },
+  { key: 'nextActions', title: 'Next actions', icon: 'checkmark-done-outline' },
+];
 
 const AI_ACTIONS: AiAction[] = [
   {
     feature: 'monthly_summary',
     title: 'AI Monthly Summary',
-    description: 'Summarize this month in plain language.',
+    description: 'Find patterns, changes, and next actions.',
     icon: 'calendar-outline',
   },
   {
     feature: 'budget_suggestion',
     title: 'Budget Suggestions',
-    description: 'Get a practical next-month spending target.',
+    description: 'Get practical targets for similar groups.',
     icon: 'bulb-outline',
   },
   {
     feature: 'category_insight',
     title: 'Category Based Insights',
-    description: 'See what is driving group spending.',
+    description: 'See categories and patterns to watch.',
     icon: 'pricetag-outline',
   },
 ];
@@ -108,6 +132,14 @@ function getFriendlyError(error: unknown): FriendlyError {
     default:
       return { message: 'AI insight could not be generated right now. Please try again.', showUpgrade: false };
   }
+}
+
+function getInsightItems(insight: AiInsight, key: InsightListKey): string[] {
+  if (key === 'keyInsights' && (insight.keyInsights?.length ?? 0) === 0 && insight.bullets?.length) {
+    return insight.bullets;
+  }
+
+  return insight[key] || [];
 }
 
 export default function AiInsightsSection({
@@ -219,7 +251,7 @@ export default function AiInsightsSection({
             <GlassCard style={styles.noticeCard}>
               <Icon name="analytics-outline" size={20} color={colors.warning} />
               <Text style={styles.noticeText}>
-                Small data set: AI can still respond, but suggestions may be basic until more expenses are added.
+                Small data set: SplitPro will show a cautious limited-data insight until more expenses are added.
               </Text>
             </GlassCard>
           )}
@@ -268,6 +300,15 @@ export default function AiInsightsSection({
             </View>
           </GlassCard>
 
+          {!result && !error && loadingFeature === null && hasMonthlyExpenses && (
+            <GlassCard style={styles.emptyResultCard}>
+              <Icon name="sparkles-outline" size={20} color={colors.primary} />
+              <Text style={styles.emptyResultText}>
+                Choose an insight type above to generate a structured AI analysis.
+              </Text>
+            </GlassCard>
+          )}
+
           {error && (
             <GlassCard style={styles.errorCard}>
               <Icon name="alert-circle-outline" size={20} color={colors.warning} />
@@ -276,6 +317,18 @@ export default function AiInsightsSection({
                 {error.showUpgrade && (
                   <Button title="Upgrade to SplitPro AI" size="sm" variant="outline" onPress={onUpgradePress} />
                 )}
+              </View>
+            </GlassCard>
+          )}
+
+          {loadingFeature !== null && (
+            <GlassCard style={styles.loadingCard}>
+              <ActivityIndicator color={colors.primary} />
+              <View style={styles.loadingCopy}>
+                <Text style={styles.loadingTitle}>Generating insight</Text>
+                <Text style={styles.loadingText}>
+                  SplitPro is checking patterns in this group without changing your balances.
+                </Text>
               </View>
             </GlassCard>
           )}
@@ -292,12 +345,34 @@ export default function AiInsightsSection({
                 )}
               </View>
               <Text style={styles.resultSummary}>{result.structured.summary}</Text>
-              {result.structured.bullets.map(bullet => (
-                <View key={bullet} style={styles.bulletRow}>
-                  <Icon name="sparkles-outline" size={16} color={colors.primary} />
-                  <Text style={styles.bulletText}>{bullet}</Text>
+
+              {result.structured.limitedDataWarning && (
+                <View style={styles.limitedDataRow}>
+                  <Icon name="information-circle-outline" size={16} color={colors.info} />
+                  <Text style={styles.limitedDataText}>{result.structured.limitedDataWarning}</Text>
                 </View>
-              ))}
+              )}
+
+              {RESULT_SECTIONS.map(section => {
+                const items = getInsightItems(result.structured, section.key);
+                if (items.length === 0) return null;
+
+                return (
+                  <View key={section.key} style={styles.resultSection}>
+                    <View style={styles.resultSectionHeader}>
+                      <Icon name={section.icon} size={17} color={colors.primary} />
+                      <Text style={styles.resultSectionTitle}>{section.title}</Text>
+                    </View>
+                    {items.map(item => (
+                      <View key={item} style={styles.bulletRow}>
+                        <View style={styles.bulletDot} />
+                        <Text style={styles.bulletText}>{item}</Text>
+                      </View>
+                    ))}
+                  </View>
+                );
+              })}
+
               {result.structured.warnings?.map(warning => (
                 <View key={warning} style={styles.warningRow}>
                   <Icon name="warning-outline" size={16} color={colors.warning} />
@@ -314,14 +389,14 @@ export default function AiInsightsSection({
 
 const createStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
   section: {
-    gap: spacing.md,
+    gap: spacing.xl,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: spacing.md,
-    marginTop: spacing.sm,
+    gap: spacing.lg,
+    marginTop: spacing.xs,
   },
   sectionTitle: {
     ...typography.heading3,
@@ -353,20 +428,20 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   cardGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   gridItem: {
-    flexBasis: '47.5%',
+    flexBasis: '46%',
     flexGrow: 1,
-    minWidth: 146,
+    minWidth: 172,
   },
   unlockedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.md,
     borderRadius: borderRadius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     backgroundColor: colors.primaryLight,
   },
   unlockedText: {
@@ -376,14 +451,14 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   noticeCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   noticeText: {
     ...typography.caption,
     flex: 1,
   },
   askCard: {
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   askHeader: {
     flexDirection: 'row',
@@ -395,7 +470,7 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   },
   questionInput: {
     ...typography.body,
-    minHeight: 92,
+    minHeight: 108,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: borderRadius.md,
@@ -415,10 +490,19 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   characterCountError: {
     color: colors.warning,
   },
+  emptyResultCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
+  emptyResultText: {
+    ...typography.caption,
+    flex: 1,
+  },
   errorCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   errorCopy: {
     flex: 1,
@@ -428,7 +512,7 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     ...typography.caption,
   },
   resultCard: {
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   resultHeader: {
     flexDirection: 'row',
@@ -457,10 +541,56 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   resultSummary: {
     ...typography.body,
   },
+  loadingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+  },
+  loadingCopy: {
+    flex: 1,
+  },
+  loadingTitle: {
+    ...typography.bodyBold,
+  },
+  loadingText: {
+    ...typography.caption,
+    marginTop: spacing.xs,
+  },
+  limitedDataRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceContainer,
+  },
+  limitedDataText: {
+    ...typography.caption,
+    flex: 1,
+  },
+  resultSection: {
+    gap: spacing.md,
+    paddingTop: spacing.md,
+  },
+  resultSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  resultSectionTitle: {
+    ...typography.bodyBold,
+  },
   bulletRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.sm,
+    gap: spacing.md,
+  },
+  bulletDot: {
+    width: 6,
+    height: 6,
+    borderRadius: borderRadius.full,
+    marginTop: 6,
+    backgroundColor: colors.primary,
   },
   bulletText: {
     ...typography.caption,

@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { expenseService } from '../../services/expenseService';
 import { groupService } from '../../services/groupService';
+import { warnUnlessPermissionDeniedAfterSignOut } from '../../services/firestoreErrorUtils';
 import { notificationService } from '../../services/notificationService';
 import type { Expense } from '../../models/Expense';
 import type { Group } from '../../models/Group';
@@ -110,7 +111,7 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
   useEffect(() => {
     groupService.getGroup(groupId)
       .then(setGroup)
-      .catch(error => console.warn('Failed to load group details:', error));
+      .catch(error => warnUnlessPermissionDeniedAfterSignOut('Failed to load group details:', error));
   }, [groupId]);
 
   useEffect(() => {

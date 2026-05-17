@@ -1,5 +1,5 @@
 const { buildSpendContext } = require("../functions/src/ai/buildSpendContext");
-const { validateAiOutput } = require("../functions/src/ai/validateAiOutput");
+const { deterministicFallback, validateAiOutput } = require("../functions/src/ai/validateAiOutput");
 
 describe("AI backend safety helpers", () => {
   it("builds sanitized spend context without ids, emails, or payment expenses", () => {
@@ -53,7 +53,12 @@ describe("AI backend safety helpers", () => {
     const validation = validateAiOutput(JSON.stringify({
       title: "May summary",
       summary: "Your group spent INR 1200.",
-      bullets: ["Food was the top category."],
+      keyInsights: ["Food was the top category."],
+      unusualPatterns: ["Weekend expenses were higher than weekday expenses."],
+      memberInsights: ["Asha paid most expenses this month."],
+      budgetSuggestions: ["Keep Food under INR 1000 next time."],
+      settlementSuggestions: ["Settle the largest balance first."],
+      nextActions: ["Review Food expenses before the next trip."],
       warnings: ["Based only on SplitPro data."],
       rawPrompt: "should not be returned",
     }));
@@ -62,9 +67,25 @@ describe("AI backend safety helpers", () => {
     expect(validation.value).toEqual({
       title: "May summary",
       summary: "Your group spent INR 1200.",
-      bullets: ["Food was the top category."],
+      keyInsights: ["Food was the top category."],
+      unusualPatterns: ["Weekend expenses were higher than weekday expenses."],
+      memberInsights: ["Asha paid most expenses this month."],
+      budgetSuggestions: ["Keep Food under INR 1000 next time."],
+      settlementSuggestions: ["Settle the largest balance first."],
+      nextActions: ["Review Food expenses before the next trip."],
       warnings: ["Based only on SplitPro data."],
     });
+  });
+
+  it("keeps old cached bullet output readable as key insights", () => {
+    const validation = validateAiOutput(JSON.stringify({
+      title: "Cached insight",
+      summary: "Older cached AI output.",
+      bullets: ["A cached bullet still displays."],
+    }));
+
+    expect(validation.ok).toBe(true);
+    expect(validation.value.keyInsights).toEqual(["A cached bullet still displays."]);
   });
 
   it("falls back on malformed AI output", () => {
@@ -72,5 +93,21 @@ describe("AI backend safety helpers", () => {
 
     expect(validation.ok).toBe(false);
     expect(validation.value.summary).toContain("couldn't generate a clean summary");
+  });
+
+  it("returns a structured limited-data fallback", () => {
+    const fallback = deterministicFallback({
+      monthKey: "2026-05",
+      totalSpend: 1200,
+      expenseCount: 1,
+      categoryBreakdown: [{ category: "Food", amount: 1200, percentage: 100 }],
+      memberStats: [{ displayName: "Asha", paid: 1200 }],
+      dataQuality: { limitedData: true },
+      settlementHints: ["Settle the largest balance first."],
+    });
+
+    expect(fallback.limitedDataWarning).toContain("small number of expenses");
+    expect(fallback.keyInsights).toHaveLength(2);
+    expect(fallback.settlementSuggestions).toEqual(["Settle the largest balance first."]);
   });
 });

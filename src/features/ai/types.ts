@@ -14,8 +14,15 @@ export type AiUsageSnapshot = {
 export type AiInsight = {
   title: string;
   summary: string;
-  bullets: string[];
+  keyInsights: string[];
+  unusualPatterns: string[];
+  memberInsights: string[];
+  budgetSuggestions: string[];
+  settlementSuggestions: string[];
+  nextActions: string[];
+  bullets?: string[];
   warnings?: string[];
+  limitedDataWarning?: string;
 };
 
 export type RequestSpendInsightParams = {

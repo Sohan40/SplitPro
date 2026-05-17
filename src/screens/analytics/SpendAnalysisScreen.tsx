@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -13,12 +14,15 @@ import Button from '../../components/Button';
 import EmptyState from '../../components/EmptyState';
 import GlassCard from '../../components/GlassCard';
 import { borderRadius, spacing, type ThemeColors, type ThemeTypography } from '../../components/theme';
-import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { useTheme } from '../../context/ThemeContext';
 import AiInsightsSection from '../../features/ai/components/AiInsightsSection';
+import { useAiEntitlement } from '../../features/ai/hooks/useAiEntitlement';
+import CategoryDonutChart, { type CategoryDonutItem } from '../../features/analytics/components/CategoryDonutChart';
 import {
   calculateSpendAnalytics,
+  formatCurrency as formatAnalyticsCurrency,
+  getMonthKey,
   getCurrentMonthKey,
   type SpendAnalyticsSummary,
 } from '../../features/analytics/calculateSpendAnalytics';
@@ -26,36 +30,226 @@ import type { Expense } from '../../models/Expense';
 import type { Group } from '../../models/Group';
 import type { SpendAnalysisScreenProps } from '../../navigation/types';
 import { expenseService } from '../../services/expenseService';
+import { warnUnlessPermissionDeniedAfterSignOut } from '../../services/firestoreErrorUtils';
 import { groupService } from '../../services/groupService';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type LoadState = 'loading' | 'ready' | 'error';
-type AnalysisTab = 'overview' | 'members' | 'trends' | 'ai';
+type AnalysisTab = 'overview' | 'categories' | 'members' | 'trends' | 'ai';
 
 type SectionProps = {
   title: string;
+  subtitle?: string;
   children: React.ReactNode;
 };
 
 type TabItem = {
   key: AnalysisTab;
   label: string;
-  icon: string;
+};
+
+type MemberSortKey =
+  | 'netHighToLow'
+  | 'netLowToHigh'
+  | 'paidLowToHigh'
+  | 'paidHighToLow'
+  | 'shareLowToHigh'
+  | 'shareHighToLow';
+
+type BasicAnalysisPreview = {
+  totalSpend: number;
+  expenseCount: number;
+  topCategory: string;
+  highestExpense: {
+    title: string;
+    amount: number;
+    category: string;
+    paidByName: string;
+  } | null;
+};
+
+type YearTrendItem = {
+  monthKey: string;
+  monthLabel: string;
+  amount: number;
+  color: string;
+  isSelectedMonth: boolean;
+  isFutureMonth: boolean;
 };
 
 const ANALYSIS_TABS: TabItem[] = [
-  { key: 'overview', label: 'Overview', icon: 'grid-outline' },
-  { key: 'members', label: 'Members', icon: 'people-outline' },
-  { key: 'trends', label: 'Trends', icon: 'trending-up-outline' },
-  { key: 'ai', label: 'AI', icon: 'sparkles-outline' },
+  { key: 'overview', label: 'Overview' },
+  { key: 'categories', label: 'Category' },
+  { key: 'members', label: 'Members' },
+  { key: 'trends', label: 'Trends' },
+  { key: 'ai', label: 'AI' },
 ];
 
-function AnalyticsSection({ title, children }: SectionProps) {
+const CATEGORY_CHART_COLORS = [
+  '#a78bfa',
+  '#60a5fa',
+  '#34d399',
+  '#f59e0b',
+  '#f472b6',
+  '#22d3ee',
+];
+const TREND_BAR_COLORS = [
+  '#8b5cf6',
+  '#60a5fa',
+  '#22d3ee',
+  '#34d399',
+  '#a3e635',
+  '#fbbf24',
+  '#fb923c',
+  '#f472b6',
+  '#c084fc',
+  '#818cf8',
+  '#38bdf8',
+  '#2dd4bf',
+];
+const MAX_PRIMARY_CATEGORY_ITEMS = 5;
+const STICKY_TAB_AREA_HEIGHT = 64;
+const TREND_TOOLTIP_WIDTH = 96;
+
+const MEMBER_SORT_OPTIONS: Array<{ key: MemberSortKey; label: string }> = [
+  { key: 'netHighToLow', label: 'Net: High to Low' },
+  { key: 'netLowToHigh', label: 'Net: Low to High' },
+  { key: 'paidLowToHigh', label: 'Paid: Low to High' },
+  { key: 'paidHighToLow', label: 'Paid: High to Low' },
+  { key: 'shareLowToHigh', label: 'Share: Low to High' },
+  { key: 'shareHighToLow', label: 'Share: High to Low' },
+];
+
+function AnalyticsSection({ title, subtitle, children }: SectionProps) {
   const { theme } = useTheme();
 
   return (
     <View style={sectionStyles.container}>
-      <Text style={[theme.typography.heading3, sectionStyles.title]}>{title}</Text>
+      <View style={sectionStyles.header}>
+        <Text style={[theme.typography.heading3, sectionStyles.title]}>{title}</Text>
+        {subtitle ? <Text style={[theme.typography.caption, sectionStyles.subtitle]}>{subtitle}</Text> : null}
+      </View>
       {children}
+    </View>
+  );
+}
+
+function LockedPremiumAnalysisCard({
+  onUpgradePress,
+  checkingAccess,
+}: {
+  onUpgradePress: () => void;
+  checkingAccess: boolean;
+}) {
+  const { theme } = useTheme();
+  const { colors, typography } = theme;
+  const styles = useMemo(() => createLockedStyles(colors, typography), [colors, typography]);
+  const buttonIconColor = theme.dark ? colors.black : colors.white;
+  const benefits = ['Category insights', 'Member trends', 'AI suggestions'];
+
+  return (
+    <GlassCard style={styles.card} padding="md" opacity={0.96} radius={borderRadius.lg}>
+      <View style={styles.badge}>
+        {checkingAccess ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Icon name="lock-closed-outline" size={13} color={colors.primary} />
+        )}
+        <Text style={styles.badgeText}>Premium</Text>
+      </View>
+
+      <View style={styles.copy}>
+        <Text style={styles.title}>Unlock full spend analysis</Text>
+        <Text style={styles.subtitle}>
+          See category insights, member trends, and AI-powered suggestions.
+        </Text>
+      </View>
+
+      <View style={styles.benefitRow}>
+        {benefits.map(benefit => (
+          <View key={benefit} style={styles.benefitChip}>
+            <View style={styles.chipDot} />
+            <Text
+              style={styles.benefitText}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+            >
+              {benefit}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <Button
+        title="Upgrade to SplitPro AI"
+        onPress={onUpgradePress}
+        disabled={checkingAccess}
+        size="sm"
+        style={styles.cta}
+        icon={<Icon name="sparkles-outline" size={15} color={buttonIconColor} />}
+      />
+    </GlassCard>
+  );
+}
+
+function HeaderMonthControl({
+  canGoToNext,
+  canGoToPrevious,
+  colors,
+  label,
+  onNext,
+  onPrevious,
+  styles,
+}: {
+  canGoToNext: boolean;
+  canGoToPrevious: boolean;
+  colors: ThemeColors;
+  label: string;
+  onNext: () => void;
+  onPrevious: () => void;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  return (
+    <View style={styles.headerMonthPill}>
+      <TouchableOpacity
+        style={[styles.headerMonthStepButton, !canGoToPrevious ? styles.headerMonthStepButtonDisabled : null]}
+        accessibilityRole="button"
+        accessibilityLabel="Previous period"
+        accessibilityState={{ disabled: !canGoToPrevious }}
+        disabled={!canGoToPrevious}
+        onPress={onPrevious}
+      >
+        <Icon
+          name="chevron-back"
+          size={14}
+          color={canGoToPrevious ? colors.primary : colors.textTertiary}
+        />
+      </TouchableOpacity>
+
+      <Text
+        style={styles.headerMonthLabel}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.84}
+      >
+        {label}
+      </Text>
+
+      <TouchableOpacity
+        style={[styles.headerMonthStepButton, !canGoToNext ? styles.headerMonthStepButtonDisabled : null]}
+        accessibilityRole="button"
+        accessibilityLabel="Next period"
+        accessibilityState={{ disabled: !canGoToNext }}
+        disabled={!canGoToNext}
+        onPress={onNext}
+      >
+        <Icon
+          name="chevron-forward"
+          size={14}
+          color={canGoToNext ? colors.primary : colors.textTertiary}
+        />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -66,12 +260,104 @@ function shiftMonth(monthKey: string, offset: number): string {
   return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}`;
 }
 
+function compareMonthKeys(a: string, b: string): number {
+  return a.localeCompare(b);
+}
+
+function getYearFromMonthKey(monthKey: string): number {
+  return Number(monthKey.split('-')[0]) || new Date().getFullYear();
+}
+
+function clampMonthKey(monthKey: string, minMonthKey: string, maxMonthKey: string): string {
+  if (compareMonthKeys(minMonthKey, maxMonthKey) > 0) {
+    return maxMonthKey;
+  }
+
+  if (compareMonthKeys(monthKey, minMonthKey) < 0) {
+    return minMonthKey;
+  }
+
+  if (compareMonthKeys(monthKey, maxMonthKey) > 0) {
+    return maxMonthKey;
+  }
+
+  return monthKey;
+}
+
 function formatMonthLabel(monthKey: string): string {
   const [year, month] = monthKey.split('-').map(Number);
   return new Intl.DateTimeFormat('en-IN', {
     month: 'long',
     year: 'numeric',
   }).format(new Date(year, month - 1, 1));
+}
+
+function formatMonthName(monthKey: string): string {
+  const [year, month] = monthKey.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-IN', {
+    month: 'long',
+  }).format(new Date(year, month - 1, 1));
+}
+
+function formatCompactMonthLabel(monthKey: string): string {
+  const [year, month] = monthKey.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-IN', {
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, 1));
+}
+
+function formatTrendMonthLabel(monthKey: string): string {
+  const [year, month] = monthKey.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(new Date(year, month - 1, 1));
+}
+
+function formatCompactAxisAmount(amount: number): string {
+  if (amount <= 0) {
+    return '0';
+  }
+
+  if (amount >= 1000) {
+    const value = amount / 1000;
+    const rounded = Math.round(value * 10) / 10;
+    return `${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}k`;
+  }
+
+  return `${Math.round(amount)}`;
+}
+
+function formatSignedCurrency(amount: number, currency = 'INR'): string {
+  if (Math.abs(amount) < 0.005) {
+    return formatAnalyticsCurrency(0, currency);
+  }
+
+  return `${amount > 0 ? '+' : '-'}${formatAnalyticsCurrency(Math.abs(amount), currency)}`;
+}
+
+function getMemberSortLabel(sortKey: MemberSortKey): string {
+  return MEMBER_SORT_OPTIONS.find(option => option.key === sortKey)?.label || 'Net: High to Low';
+}
+
+function compareMemberStats(
+  a: SpendAnalyticsSummary['memberStats'][number],
+  b: SpendAnalyticsSummary['memberStats'][number],
+  sortKey: MemberSortKey,
+): number {
+  switch (sortKey) {
+    case 'netLowToHigh':
+      return a.net - b.net || a.displayName.localeCompare(b.displayName);
+    case 'paidLowToHigh':
+      return a.paid - b.paid || a.displayName.localeCompare(b.displayName);
+    case 'paidHighToLow':
+      return b.paid - a.paid || a.displayName.localeCompare(b.displayName);
+    case 'shareLowToHigh':
+      return a.owedShare - b.owedShare || a.displayName.localeCompare(b.displayName);
+    case 'shareHighToLow':
+      return b.owedShare - a.owedShare || a.displayName.localeCompare(b.displayName);
+    case 'netHighToLow':
+    default:
+      return b.net - a.net || a.displayName.localeCompare(b.displayName);
+  }
 }
 
 function hasSpendHistory(group: Group, expenses: Expense[]): boolean {
@@ -84,23 +370,239 @@ function hasSpendHistory(group: Group, expenses: Expense[]): boolean {
   ));
 }
 
+function normalizePreviewCategory(category?: string): string {
+  const labels: Record<string, string> = {
+    food: 'Food',
+    groceries: 'Groceries',
+    rent: 'Rent',
+    utilities: 'Utilities',
+    transport: 'Travel',
+    travel: 'Travel',
+    shopping: 'Shopping',
+    entertainment: 'Entertainment',
+    health: 'Health',
+    education: 'Education',
+    subscriptions: 'Subscriptions',
+    gifts: 'Gifts',
+    pets: 'Pets',
+    fitness: 'Fitness',
+    sports: 'Sports',
+    others: 'Other',
+    other: 'Other',
+  };
+
+  return labels[String(category || '').toLowerCase()] || 'Other';
+}
+
+function normalizeBreakdownCategory(category?: string): string {
+  const labels: Record<string, string> = {
+    food: 'Food',
+    groceries: 'Groceries',
+    rent: 'Rent',
+    utilities: 'Utilities',
+    transport: 'Travel',
+    travel: 'Travel',
+    shopping: 'Shopping',
+    entertainment: 'Entertainment',
+    health: 'Health',
+    others: 'Other',
+    other: 'Other',
+    payment: 'Other',
+  };
+
+  return labels[String(category || '').toLowerCase()] || 'Other';
+}
+
+function getCategoryItemId(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'category';
+}
+
+function buildCategoryDonutItems({
+  categoryBreakdown,
+  group,
+  expenses,
+  monthKey,
+}: {
+  categoryBreakdown: SpendAnalyticsSummary['categoryBreakdown'];
+  group: Group;
+  expenses: Expense[];
+  monthKey: string;
+}): CategoryDonutItem[] {
+  const totalAmount = categoryBreakdown.reduce((sum, item) => sum + item.amount, 0);
+  if (totalAmount <= 0) {
+    return [];
+  }
+
+  const expenseCounts = new Map<string, number>();
+  expenses
+    .filter(expense => (
+      expense.groupId === group.id
+      && expense.splitType !== 'payment'
+      && expense.category !== 'payment'
+      && Number.isFinite(expense.amount)
+      && expense.amount > 0
+      && getMonthKey(expense.createdAt) === monthKey
+    ))
+    .forEach(expense => {
+      const category = normalizeBreakdownCategory(expense.category);
+      expenseCounts.set(category, (expenseCounts.get(category) || 0) + 1);
+    });
+
+  const rows = categoryBreakdown
+    .filter(item => item.amount > 0)
+    .map(item => ({
+      label: item.category,
+      amount: item.amount,
+      expenseCount: expenseCounts.get(item.category) || 0,
+    }))
+    .sort((a, b) => b.amount - a.amount || a.label.localeCompare(b.label));
+
+  const primaryRows = rows.slice(0, MAX_PRIMARY_CATEGORY_ITEMS).map(row => ({ ...row }));
+  const overflowRows = rows.slice(MAX_PRIMARY_CATEGORY_ITEMS);
+  if (overflowRows.length > 0) {
+    const overflowAmount = overflowRows.reduce((sum, row) => sum + row.amount, 0);
+    const overflowExpenseCount = overflowRows.reduce((sum, row) => sum + row.expenseCount, 0);
+    const existingOther = primaryRows.find(row => row.label === 'Other');
+
+    if (existingOther) {
+      existingOther.amount += overflowAmount;
+      existingOther.expenseCount += overflowExpenseCount;
+    } else {
+      primaryRows.push({
+        label: 'Other',
+        amount: overflowAmount,
+        expenseCount: overflowExpenseCount,
+      });
+    }
+  }
+
+  return primaryRows
+    .sort((a, b) => b.amount - a.amount || a.label.localeCompare(b.label))
+    .map((row, index) => ({
+      id: getCategoryItemId(row.label),
+      label: row.label,
+      amount: Math.round(row.amount * 100) / 100,
+      percentage: Math.round((row.amount / totalAmount) * 100),
+      expenseCount: row.expenseCount,
+      color: CATEGORY_CHART_COLORS[index % CATEGORY_CHART_COLORS.length],
+    }));
+}
+
+function buildBasicAnalysisPreview(
+  group: Group,
+  expenses: Expense[],
+  monthKey: string,
+): BasicAnalysisPreview {
+  const selectedExpenses = expenses
+    .filter(expense => expense.groupId === group.id)
+    .filter(expense => (
+      expense.splitType !== 'payment'
+      && expense.category !== 'payment'
+      && Number.isFinite(expense.amount)
+      && expense.amount > 0
+      && getMonthKey(expense.createdAt) === monthKey
+    ));
+  const categoryTotals = new Map<string, number>();
+  let totalSpend = 0;
+
+  selectedExpenses.forEach(expense => {
+    const amount = expense.amount;
+    const category = normalizePreviewCategory(expense.category);
+    totalSpend += amount;
+    categoryTotals.set(category, (categoryTotals.get(category) || 0) + amount);
+  });
+
+  const topCategory = Array.from(categoryTotals.entries())
+    .sort((a, b) => b[1] - a[1])[0]?.[0] || 'None';
+  const highest = [...selectedExpenses].sort((a, b) => b.amount - a.amount)[0];
+  const toPreviewExpense = (expense: Expense | undefined) => expense ? {
+    title: expense.description || 'Untitled expense',
+    amount: Math.round(expense.amount * 100) / 100,
+    category: normalizePreviewCategory(expense.category),
+    paidByName: expense.paidBy.name || 'Unknown payer',
+  } : null;
+
+  return {
+    totalSpend: Math.round(totalSpend * 100) / 100,
+    expenseCount: selectedExpenses.length,
+    topCategory,
+    highestExpense: toPreviewExpense(highest),
+  };
+}
+
+function buildYearTrendItems({
+  group,
+  expenses,
+  year,
+  selectedMonthKey,
+  currentMonthKey,
+}: {
+  group: Group;
+  expenses: Expense[];
+  year: number;
+  selectedMonthKey: string;
+  currentMonthKey: string;
+}): YearTrendItem[] {
+  const totals = new Map<string, number>();
+
+  expenses
+    .filter(expense => (
+      expense.groupId === group.id
+      && expense.splitType !== 'payment'
+      && expense.category !== 'payment'
+      && Number.isFinite(expense.amount)
+      && expense.amount > 0
+      && getYearFromMonthKey(getMonthKey(expense.createdAt)) === year
+    ))
+    .forEach(expense => {
+      const expenseMonthKey = getMonthKey(expense.createdAt);
+      totals.set(expenseMonthKey, (totals.get(expenseMonthKey) || 0) + expense.amount);
+    });
+
+  return Array.from({ length: 12 }, (_, index) => {
+    const monthKeyForYear = `${year}-${`${index + 1}`.padStart(2, '0')}`;
+    const amount = Math.round((totals.get(monthKeyForYear) || 0) * 100) / 100;
+
+    return {
+      monthKey: monthKeyForYear,
+      monthLabel: formatTrendMonthLabel(monthKeyForYear),
+      amount,
+      color: TREND_BAR_COLORS[index % TREND_BAR_COLORS.length],
+      isSelectedMonth: monthKeyForYear === selectedMonthKey,
+      isFutureMonth: compareMonthKeys(monthKeyForYear, currentMonthKey) > 0,
+    };
+  });
+}
+
 export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysisScreenProps) {
   const { groupId, groupName, monthKey: initialMonthKey } = route.params;
-  const { user } = useAuth();
   const { currency, formatAmount } = useCurrency();
   const { theme, isDark } = useTheme();
+  const { isAiEntitled, isLoading: entitlementLoading } = useAiEntitlement();
+  const insets = useSafeAreaInsets();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+  const scrollContentStyle = useMemo(
+    () => [
+      styles.content,
+      {
+        paddingTop: STICKY_TAB_AREA_HEIGHT + spacing.md,
+        paddingBottom: spacing.huge + spacing.xxxl + insets.bottom,
+      },
+    ],
+    [insets.bottom, styles.content],
+  );
 
   const [group, setGroup] = useState<Group | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [monthKey, setMonthKey] = useState(initialMonthKey || getCurrentMonthKey());
   const [activeTab, setActiveTab] = useState<AnalysisTab>('overview');
-
-  useEffect(() => {
-    navigation.setOptions({ title: `${groupName} Analysis` });
-  }, [groupName, navigation]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [memberSort, setMemberSort] = useState<MemberSortKey>('netHighToLow');
+  const [isMemberSortOpen, setIsMemberSortOpen] = useState(false);
+  const [trendYear, setTrendYear] = useState(() => getYearFromMonthKey(initialMonthKey || getCurrentMonthKey()));
+  const [selectedTrendMonthKey, setSelectedTrendMonthKey] = useState<string | null>(null);
 
   useEffect(() => {
     setLoadState('loading');
@@ -131,7 +633,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
         markReady();
       });
     } catch (error) {
-      console.error('Failed to load spend analysis:', error);
+      warnUnlessPermissionDeniedAfterSignOut('Failed to load spend analysis:', error);
       if (isActive) {
         setLoadState('error');
       }
@@ -145,16 +647,156 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
   }, [groupId]);
 
   const groupCurrency = group?.currency || currency;
-  const summary = useMemo<SpendAnalyticsSummary | null>(() => {
+  const isPremium = isAiEntitled;
+  const currentMonthKey = getCurrentMonthKey();
+  const groupStartMonthKey = group ? getMonthKey(group.createdAt) : currentMonthKey;
+  const minMonthKey = compareMonthKeys(groupStartMonthKey, currentMonthKey) > 0
+    ? currentMonthKey
+    : groupStartMonthKey;
+  const minTrendYear = getYearFromMonthKey(minMonthKey);
+  const currentTrendYear = getYearFromMonthKey(currentMonthKey);
+  const canGoToPreviousMonth = compareMonthKeys(monthKey, minMonthKey) > 0;
+  const canGoToNextMonth = compareMonthKeys(monthKey, currentMonthKey) < 0;
+  const isTrendTabActive = activeTab === 'trends';
+  const canGoToPreviousTrendYear = trendYear > minTrendYear;
+  const canGoToNextTrendYear = trendYear < currentTrendYear;
+  const renderHeaderMonthControl = useCallback(() => (
+    <HeaderMonthControl
+      canGoToNext={isTrendTabActive ? canGoToNextTrendYear : canGoToNextMonth}
+      canGoToPrevious={isTrendTabActive ? canGoToPreviousTrendYear : canGoToPreviousMonth}
+      colors={colors}
+      label={isTrendTabActive ? String(trendYear) : formatCompactMonthLabel(monthKey)}
+      onNext={isTrendTabActive
+        ? () => setTrendYear(current => Math.min(current + 1, currentTrendYear))
+        : () => setMonthKey(current => clampMonthKey(shiftMonth(current, 1), minMonthKey, currentMonthKey))}
+      onPrevious={isTrendTabActive
+        ? () => setTrendYear(current => Math.max(current - 1, minTrendYear))
+        : () => setMonthKey(current => clampMonthKey(shiftMonth(current, -1), minMonthKey, currentMonthKey))}
+      styles={styles}
+    />
+  ), [
+    canGoToNextMonth,
+    canGoToNextTrendYear,
+    canGoToPreviousMonth,
+    canGoToPreviousTrendYear,
+    colors,
+    currentMonthKey,
+    currentTrendYear,
+    isTrendTabActive,
+    minMonthKey,
+    minTrendYear,
+    monthKey,
+    trendYear,
+    styles,
+  ]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: `${groupName} Analysis`,
+      headerRight: renderHeaderMonthControl,
+    });
+  }, [groupName, navigation, renderHeaderMonthControl]);
+
+  const basicPreview = useMemo<BasicAnalysisPreview | null>(() => {
     if (!group) return null;
+    return buildBasicAnalysisPreview(group, expenses, monthKey);
+  }, [expenses, group, monthKey]);
+  const summary = useMemo<SpendAnalyticsSummary | null>(() => {
+    if (!group || !isPremium) return null;
     return calculateSpendAnalytics({ group, expenses, monthKey, currency: groupCurrency });
-  }, [expenses, group, groupCurrency, monthKey]);
+  }, [expenses, group, groupCurrency, isPremium, monthKey]);
+  const categoryDonutItems = useMemo<CategoryDonutItem[]>(() => {
+    if (!group || !summary) return [];
+    return buildCategoryDonutItems({
+      categoryBreakdown: summary.categoryBreakdown,
+      group,
+      expenses,
+      monthKey,
+    });
+  }, [expenses, group, monthKey, summary]);
+  const yearTrendItems = useMemo<YearTrendItem[]>(() => {
+    if (!group || !summary) return [];
+    return buildYearTrendItems({
+      group,
+      expenses,
+      year: trendYear,
+      selectedMonthKey: monthKey,
+      currentMonthKey,
+    });
+  }, [currentMonthKey, expenses, group, monthKey, summary, trendYear]);
 
   const hasAnySpend = group ? hasSpendHistory(group, expenses) : false;
-  const currentUserStats = summary?.memberStats.find(member => member.uid === user?.id);
-  const maxTrendAmount = Math.max(...(summary?.monthlyTrend.map(item => item.amount) || [0]), 1);
-  const topCategory = summary?.categoryBreakdown[0]?.category || 'None';
-  const highestExpense = summary?.topExpenses[0];
+  const maxTrendAmount = Math.max(...yearTrendItems.map(item => item.amount), 1);
+  const trendAxisMax = Math.ceil(maxTrendAmount / 5000) * 5000 || 5000;
+  const recordedTrendMonths = yearTrendItems.filter(item => item.amount > 0);
+  const highestTrendMonth = recordedTrendMonths
+    .slice()
+    .sort((a, b) => b.amount - a.amount || a.monthKey.localeCompare(b.monthKey))[0];
+  const selectedTrendMonth = yearTrendItems.find(item => item.monthKey === selectedTrendMonthKey)
+    || yearTrendItems.find(item => item.monthKey === monthKey)
+    || highestTrendMonth
+    || yearTrendItems[0];
+  const selectedTrendMonthIndex = selectedTrendMonth
+    ? yearTrendItems.findIndex(item => item.monthKey === selectedTrendMonth.monthKey)
+    : -1;
+  const memberBalanceRows = useMemo(() => {
+    if (!summary) return [];
+
+    return [...summary.memberStats].sort((a, b) => compareMemberStats(a, b, memberSort));
+  }, [memberSort, summary]);
+  const maxMemberAbsNet = Math.max(...memberBalanceRows.map(member => Math.abs(member.net)), 0);
+  const allMembersSettled = memberBalanceRows.length > 0 && maxMemberAbsNet < 0.005;
+  const topCategory = summary?.categoryBreakdown[0]?.category || basicPreview?.topCategory || 'None';
+  const highestExpense = summary?.topExpenses[0] || basicPreview?.highestExpense;
+  const overviewTotalSpend = summary?.totalSpend ?? basicPreview?.totalSpend ?? 0;
+  const overviewExpenseCount = summary?.expenseCount ?? basicPreview?.expenseCount ?? 0;
+  const overviewMetrics = [
+    {
+      label: 'Top category',
+      value: topCategory,
+      icon: 'pricetag-outline',
+    },
+    {
+      label: 'Highest expense',
+      value: highestExpense ? formatAnalyticsCurrency(highestExpense.amount, groupCurrency) : 'None',
+      icon: 'trending-up-outline',
+    },
+    {
+      label: 'Expenses',
+      value: String(overviewExpenseCount),
+      icon: 'receipt-outline',
+    },
+  ];
+
+  useEffect(() => {
+    if (!group) return;
+    setMonthKey(current => clampMonthKey(current, minMonthKey, currentMonthKey));
+  }, [currentMonthKey, group, minMonthKey]);
+
+  useEffect(() => {
+    if (activeTab === 'trends') {
+      setTrendYear(getYearFromMonthKey(monthKey));
+    }
+  }, [activeTab, monthKey]);
+
+  useEffect(() => {
+    if (!yearTrendItems.length) {
+      setSelectedTrendMonthKey(null);
+      return;
+    }
+
+    setSelectedTrendMonthKey(current => (
+      current && yearTrendItems.some(item => item.monthKey === current)
+        ? current
+        : (yearTrendItems.find(item => item.monthKey === monthKey)?.monthKey
+          || highestTrendMonth?.monthKey
+          || yearTrendItems[0].monthKey)
+    ));
+  }, [highestTrendMonth, monthKey, yearTrendItems]);
+
+  useEffect(() => {
+    setSelectedCategoryId(categoryDonutItems[0]?.id ?? null);
+  }, [categoryDonutItems]);
 
   if (loadState === 'loading') {
     return (
@@ -166,7 +808,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
     );
   }
 
-  if (loadState === 'error' || !group || !summary) {
+  if (loadState === 'error' || !group || !basicPreview) {
     return (
       <View style={styles.container}>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
@@ -183,76 +825,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
   return (
     <View style={styles.container}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.monthSwitcher}>
-          <TouchableOpacity
-            style={styles.monthButton}
-            accessibilityRole="button"
-            onPress={() => setMonthKey(current => shiftMonth(current, -1))}
-          >
-            <Icon name="chevron-back" size={20} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <View style={styles.monthLabelWrap}>
-            <Text style={styles.monthEyebrow}>Spend Analysis</Text>
-            <Text style={styles.monthLabel}>{formatMonthLabel(monthKey)}</Text>
-          </View>
-          <TouchableOpacity
-            style={styles.monthButton}
-            accessibilityRole="button"
-            onPress={() => setMonthKey(current => shiftMonth(current, 1))}
-          >
-            <Icon name="chevron-forward" size={20} color={colors.textPrimary} />
-          </TouchableOpacity>
-        </View>
-
-        {!hasAnySpend && (
-          <GlassCard style={styles.noticeCard}>
-            <Icon name="analytics-outline" size={22} color={colors.textSecondary} />
-            <View style={styles.noticeCopy}>
-              <Text style={styles.noticeTitle}>No spending to analyze yet</Text>
-              <Text style={styles.noticeText}>
-                Add a group expense to unlock richer analysis across these tabs.
-              </Text>
-            </View>
-          </GlassCard>
-        )}
-
-        {hasAnySpend && summary.expenseCount === 0 && (
-          <GlassCard style={styles.noticeCard}>
-            <Icon name="calendar-outline" size={22} color={colors.textSecondary} />
-            <View style={styles.noticeCopy}>
-              <Text style={styles.noticeTitle}>No expenses this month</Text>
-              <Text style={styles.noticeText}>Try another month or add a new expense for this group.</Text>
-            </View>
-          </GlassCard>
-        )}
-
-        <View style={styles.metricGrid}>
-          {renderMetricCard(styles, colors, 'Total Spend', formatAmount(summary.totalSpend, { currency: groupCurrency }), 'wallet-outline')}
-          {renderMetricCard(styles, colors, 'Expenses', `${summary.expenseCount}`, 'receipt-outline')}
-          {renderMetricCard(styles, colors, 'Top Category', topCategory, 'pricetag-outline')}
-          {renderMetricCard(
-            styles,
-            colors,
-            'Your Net',
-            currentUserStats ? formatAmount(currentUserStats.net, { currency: groupCurrency }) : 'N/A',
-            'person-circle-outline',
-            currentUserStats && currentUserStats.net < 0 ? colors.owes : colors.owed,
-          )}
-        </View>
-
-        {summary.expenseCount > 0 && summary.expenseCount < 3 && (
-          <GlassCard style={styles.noticeCard}>
-            <Icon name="information-circle-outline" size={22} color={colors.info} />
-            <View style={styles.noticeCopy}>
-              <Text style={styles.noticeTitle}>Small data set</Text>
-              <Text style={styles.noticeText}>
-                Insights will become more useful after a few more expenses are added.
-              </Text>
-            </View>
-          </GlassCard>
-        )}
-
+      <View style={styles.stickyTabShell}>
         <View style={styles.tabBar} accessibilityRole="tablist">
           {ANALYSIS_TABS.map(tab => {
             const isActive = activeTab === tab.key;
@@ -264,213 +837,549 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
                 accessibilityState={{ selected: isActive }}
                 onPress={() => setActiveTab(tab.key)}
               >
-                <Icon
-                  name={tab.icon}
-                  size={16}
-                  color={isActive ? colors.primary : colors.textSecondary}
-                />
-                <Text style={[styles.tabLabel, isActive ? styles.tabLabelActive : null]}>{tab.label}</Text>
+                <Text
+                  style={[styles.tabLabel, isActive ? styles.tabLabelActive : null]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
+                >
+                  {tab.label}
+                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
-
+      </View>
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={scrollContentStyle}
+        showsVerticalScrollIndicator={false}
+      >
         {activeTab === 'overview' && (
-          <>
-            <AnalyticsSection title="Overview Snapshot">
-              <View style={styles.overviewGrid}>
-                {renderCompactStat(styles, colors, 'Total Spend', formatAmount(summary.totalSpend, { currency: groupCurrency }), 'wallet-outline')}
-                {renderCompactStat(styles, colors, 'Top Category', topCategory, 'pricetag-outline')}
-                {renderCompactStat(
-                  styles,
-                  colors,
-                  'Highest Expense',
-                  highestExpense ? formatAmount(highestExpense.amount, { currency: groupCurrency }) : 'None',
-                  'receipt-outline',
-                )}
-              </View>
-              {highestExpense && (
-                <GlassCard style={styles.rowCard} padding="sm">
-                  <View style={styles.rowHeader}>
-                    <View style={styles.memberNameWrap}>
-                      <Text style={styles.rowTitle} numberOfLines={1}>{highestExpense.title}</Text>
-                      <Text style={styles.rowMeta}>
-                        Highest expense - {highestExpense.category} - Paid by {highestExpense.paidByName}
+          <View style={styles.tabPanel}>
+            {summary ? (
+              <>
+                {!hasAnySpend && (
+                  <GlassCard style={styles.noticeCard}>
+                    <Icon name="analytics-outline" size={22} color={colors.textSecondary} />
+                    <View style={styles.noticeCopy}>
+                      <Text style={styles.noticeTitle}>No spending to analyze yet</Text>
+                      <Text style={styles.noticeText}>
+                        Add a group expense to unlock richer analysis across these tabs.
                       </Text>
                     </View>
-                    <Text style={styles.rowAmount}>{formatAmount(highestExpense.amount, { currency: groupCurrency })}</Text>
+                  </GlassCard>
+                )}
+
+                {hasAnySpend && basicPreview.expenseCount === 0 && (
+                  <GlassCard style={styles.noticeCard}>
+                    <Icon name="calendar-outline" size={22} color={colors.textSecondary} />
+                    <View style={styles.noticeCopy}>
+                      <Text style={styles.noticeTitle}>No expenses this month</Text>
+                      <Text style={styles.noticeText}>Try another month or add a new expense for this group.</Text>
+                    </View>
+                  </GlassCard>
+                )}
+
+                {basicPreview.expenseCount > 0 && basicPreview.expenseCount < 3 && (
+                  <GlassCard style={styles.noticeCard}>
+                    <Icon name="information-circle-outline" size={22} color={colors.info} />
+                    <View style={styles.noticeCopy}>
+                      <Text style={styles.noticeTitle}>Small data set</Text>
+                      <Text style={styles.noticeText}>
+                        Insights will become more useful after a few more expenses are added.
+                      </Text>
+                    </View>
+                  </GlassCard>
+                )}
+
+                <GlassCard style={styles.overviewHeroCard} padding="lg" opacity={0.97}>
+                  <View style={styles.overviewHeroHeader}>
+                    <View style={styles.overviewHeroBadge}>
+                      <Icon name="wallet-outline" size={16} color={colors.primary} />
+                    </View>
+                    <Text style={styles.overviewHeroLabel} numberOfLines={1}>
+                      Total spend in {formatMonthName(monthKey)}
+                    </Text>
+                  </View>
+
+                  <Text
+                    style={styles.overviewHeroAmount}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.72}
+                  >
+                    {formatAnalyticsCurrency(overviewTotalSpend, groupCurrency)}
+                  </Text>
+                  <Text style={styles.overviewHeroSubtitle}>{formatMonthLabel(monthKey)}</Text>
+
+                  <View style={styles.overviewMetricList}>
+                    {overviewMetrics.map(metric => (
+                      <View key={metric.label} style={styles.overviewMetricRow}>
+                        <View style={styles.overviewMetricLabelWrap}>
+                          <Icon name={metric.icon} size={15} color={colors.textSecondary} />
+                          <Text style={styles.overviewMetricLabel} numberOfLines={1}>{metric.label}</Text>
+                        </View>
+                        <Text
+                          style={styles.overviewMetricValue}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.82}
+                        >
+                          {metric.value}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 </GlassCard>
-              )}
-            </AnalyticsSection>
 
-            <AnalyticsSection title="Category Breakdown">
-              {summary.categoryBreakdown.length === 0 ? (
-                <EmptyState
-                  icon="pricetag-outline"
-                  title="No category totals"
-                  message="Category breakdown appears after this month has spending."
-                />
-              ) : (
-                summary.categoryBreakdown.map(item => (
-                  <GlassCard key={item.category} style={styles.rowCard} padding="sm">
-                    <View style={styles.rowHeader}>
-                      <Text style={styles.rowTitle}>{item.category}</Text>
-                      <Text style={styles.rowAmount}>{formatAmount(item.amount, { currency: groupCurrency })}</Text>
-                    </View>
-                    <View style={styles.barTrack}>
-                      <View style={[styles.barFill, { width: `${Math.max(item.percentage, 4)}%` }]} />
-                    </View>
-                    <Text style={styles.rowMeta}>{item.percentage}% of monthly spend</Text>
+                <AnalyticsSection
+                  title="Quick Insights"
+                  subtitle="Helpful patterns from this month's spending."
+                >
+                  <GlassCard style={styles.insightCard} padding="md">
+                    {summary.deterministicInsights.map(insight => (
+                      <View key={insight} style={styles.insightRow}>
+                        <Icon name="sparkles-outline" size={17} color={colors.primary} />
+                        <Text style={styles.insightText}>{insight}</Text>
+                      </View>
+                    ))}
                   </GlassCard>
-                ))
-              )}
-            </AnalyticsSection>
+                </AnalyticsSection>
+              </>
+            ) : (
+              <LockedPremiumAnalysisCard
+                checkingAccess={entitlementLoading}
+                onUpgradePress={() => navigation.navigate('UpgradeAi')}
+              />
+            )}
+          </View>
+        )}
 
-            <AnalyticsSection title="Basic Insights">
-              <GlassCard style={styles.insightCard}>
-                {summary.deterministicInsights.map(insight => (
-                  <View key={insight} style={styles.insightRow}>
-                    <Icon name="sparkles-outline" size={18} color={colors.primary} />
-                    <Text style={styles.insightText}>{insight}</Text>
-                  </View>
-                ))}
-              </GlassCard>
-            </AnalyticsSection>
-          </>
+        {activeTab === 'categories' && (
+          summary ? (
+            <View style={styles.tabPanel}>
+              <AnalyticsSection
+                title="Category Breakdown"
+                subtitle="Spending share by category for the selected month."
+              >
+                {categoryDonutItems.length === 0 ? (
+                  <EmptyState
+                    icon="pricetag-outline"
+                    title="No category data yet"
+                    message="Add expenses to see your spending breakdown."
+                  />
+                ) : (
+                  <CategoryDonutChart
+                    items={categoryDonutItems}
+                    totalAmount={summary.totalSpend}
+                    selectedId={selectedCategoryId}
+                    onSelect={setSelectedCategoryId}
+                    formatAmount={amount => formatAnalyticsCurrency(amount, groupCurrency)}
+                  />
+                )}
+              </AnalyticsSection>
+            </View>
+          ) : (
+            <LockedPremiumAnalysisCard
+              checkingAccess={entitlementLoading}
+              onUpgradePress={() => navigation.navigate('UpgradeAi')}
+            />
+          )
         )}
 
         {activeTab === 'members' && (
-          <AnalyticsSection title="Member-wise Spend">
-            {summary.memberStats.length === 0 ? (
-              <EmptyState
-                icon="people-outline"
-                title="No members to analyze"
-                message="Member analytics appear after this group has members."
-              />
-            ) : (
-              summary.memberStats.map(member => (
-                <GlassCard key={member.uid} style={styles.rowCard} padding="sm">
-                  <View style={styles.rowHeader}>
-                    <View style={styles.memberNameWrap}>
-                      <Text style={styles.rowTitle} numberOfLines={1}>{member.displayName}</Text>
-                      <Text style={styles.rowMeta}>
-                        Paid {formatAmount(member.paid, { currency: groupCurrency })} - Share {formatAmount(member.owedShare, { currency: groupCurrency })}
+          summary ? (
+            <View style={styles.tabPanel}>
+              <AnalyticsSection
+                title="Members Balance Overview"
+                subtitle="See who is owed and who still owes."
+              >
+                {memberBalanceRows.length === 0 ? (
+                  <EmptyState
+                    icon="people-outline"
+                    title="No members to analyze"
+                    message="Member analytics appear after this group has members."
+                  />
+                ) : (
+                  <View style={styles.memberBalanceList}>
+                    <View style={styles.memberLegendRow}>
+                      <View style={styles.memberLegendItem}>
+                        <View style={[styles.memberLegendDot, styles.memberLegendDotPositive]} />
+                        <Text style={styles.memberLegendText}>Paid</Text>
+                      </View>
+                      <View style={styles.memberLegendItem}>
+                        <View style={[styles.memberLegendDot, styles.memberLegendDotNegative]} />
+                        <Text style={styles.memberLegendText}>Share</Text>
+                      </View>
+                      <View style={styles.memberLegendSpacer} />
+                      <TouchableOpacity
+                        style={styles.memberSortButton}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Sort members, current sort ${getMemberSortLabel(memberSort)}`}
+                        onPress={() => setIsMemberSortOpen(true)}
+                      >
+                        <Icon name="swap-vertical-outline" size={15} color={colors.primary} />
+                        <Text style={styles.memberSortButtonText}>Sort</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.memberLegendHelp} numberOfLines={1}>
+                        Balance is shown on the right.
                       </Text>
                     </View>
-                    <Text style={[styles.memberNet, { color: member.net < 0 ? colors.owes : colors.owed }]}>
-                      {formatAmount(member.net, { currency: groupCurrency })}
-                    </Text>
+
+                    {allMembersSettled && (
+                      <View style={styles.memberSettledBanner}>
+                        <Icon name="checkmark-circle-outline" size={17} color={colors.owed} />
+                        <Text style={styles.memberSettledText}>Everyone is balanced for this month.</Text>
+                      </View>
+                    )}
+
+                    {memberBalanceRows.map(member => {
+                      const isPositive = member.net > 0.005;
+                      const isNegative = member.net < -0.005;
+                      const comparisonTotal = member.paid + member.owedShare;
+                      const paidPercent = comparisonTotal > 0 && member.paid > 0
+                        ? (member.paid / comparisonTotal) * 100
+                        : 0;
+                      const sharePercent = comparisonTotal > 0 && member.owedShare > 0
+                        ? (member.owedShare / comparisonTotal) * 100
+                        : 0;
+                      const amountColor = isPositive ? colors.owed : isNegative ? colors.owes : colors.textSecondary;
+                      const amountLabel = isPositive || isNegative
+                        ? formatSignedCurrency(member.net, groupCurrency)
+                        : 'Settled';
+
+                      return (
+                        <GlassCard key={member.uid} style={styles.memberBalanceRow} padding="sm">
+                          <View style={styles.memberBalanceTopLine}>
+                            <Text style={styles.memberBalanceName} numberOfLines={1}>{member.displayName}</Text>
+                            <Text
+                              style={[styles.memberBalanceAmount, { color: amountColor }]}
+                              numberOfLines={1}
+                              adjustsFontSizeToFit
+                              minimumFontScale={0.82}
+                            >
+                              {amountLabel}
+                            </Text>
+                          </View>
+
+                          <View style={styles.memberBalanceTrack}>
+                            <View
+                              style={[
+                                styles.memberBalanceBar,
+                                styles.memberBalanceBarPaid,
+                                { width: `${paidPercent}%` },
+                              ]}
+                            />
+                            <View
+                              style={[
+                                styles.memberBalanceBar,
+                                styles.memberBalanceBarShare,
+                                { width: `${sharePercent}%` },
+                              ]}
+                            />
+                          </View>
+
+                          <View style={styles.memberBalanceMetaRow}>
+                            <Text style={styles.memberBalancePaidMeta} numberOfLines={1}>
+                              Paid {formatAmount(member.paid, { currency: groupCurrency })}
+                            </Text>
+                            <Text style={styles.memberBalanceShareMeta} numberOfLines={1}>
+                              Share {formatAmount(member.owedShare, { currency: groupCurrency })}
+                            </Text>
+                          </View>
+                        </GlassCard>
+                      );
+                    })}
                   </View>
-                </GlassCard>
-              ))
-            )}
-          </AnalyticsSection>
+                )}
+              </AnalyticsSection>
+            </View>
+          ) : (
+            <LockedPremiumAnalysisCard
+              checkingAccess={entitlementLoading}
+              onUpgradePress={() => navigation.navigate('UpgradeAi')}
+            />
+          )
         )}
 
         {activeTab === 'trends' && (
-          <>
-            <AnalyticsSection title="Monthly Trend">
-              <GlassCard style={styles.trendCard}>
-                {summary.monthlyTrend.map(item => (
-                  <View key={item.monthKey} style={styles.trendRow}>
-                    <Text style={styles.trendMonth}>{item.monthKey.slice(5)}</Text>
-                    <View style={styles.trendTrack}>
-                      <View
-                        style={[
-                          styles.trendFill,
-                          { width: `${Math.max((item.amount / maxTrendAmount) * 100, item.amount > 0 ? 6 : 0)}%` },
-                        ]}
-                      />
+          summary ? (
+            <View style={styles.tabPanel}>
+              <AnalyticsSection
+                title="Monthly Trend"
+                subtitle={`Spending across months in ${trendYear}.`}
+              >
+                <GlassCard style={styles.yearTrendCard} padding="md">
+                  <View style={styles.yearTrendSummaryRow}>
+                    <View>
+                      <Text style={styles.yearTrendSummaryLabel}>Highest month</Text>
+                      <Text style={styles.yearTrendSummaryValue}>
+                        {highestTrendMonth ? highestTrendMonth.monthLabel : 'No spend yet'}
+                      </Text>
                     </View>
-                    <Text style={styles.trendAmount}>{formatAmount(item.amount, { currency: groupCurrency })}</Text>
+                    <Text
+                      style={styles.yearTrendSummaryAmount}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.78}
+                    >
+                      {highestTrendMonth
+                        ? formatAnalyticsCurrency(highestTrendMonth.amount, groupCurrency)
+                        : formatAnalyticsCurrency(0, groupCurrency)}
+                    </Text>
                   </View>
-                ))}
-              </GlassCard>
-            </AnalyticsSection>
 
-            <AnalyticsSection title="Largest Expenses">
-              {summary.topExpenses.length === 0 ? (
-                <EmptyState
-                  icon="receipt-outline"
-                  title="No largest expenses yet"
-                  message="Largest expenses appear after this month has spending."
-                />
-              ) : (
-                summary.topExpenses.map(expense => (
-                  <GlassCard key={expense.id} style={styles.rowCard} padding="sm">
-                    <View style={styles.rowHeader}>
-                      <View style={styles.memberNameWrap}>
-                        <Text style={styles.rowTitle} numberOfLines={1}>{expense.title}</Text>
-                        <Text style={styles.rowMeta}>{expense.category} - Paid by {expense.paidByName}</Text>
+                  <View style={styles.yearTrendChartArea}>
+                    <View style={styles.yearTrendYAxis}>
+                      <Text style={styles.yearTrendAxisLabel}>
+                        {formatCompactAxisAmount(trendAxisMax)}
+                      </Text>
+                      <Text style={styles.yearTrendAxisLabel}>
+                        {formatCompactAxisAmount(trendAxisMax / 2)}
+                      </Text>
+                      <Text style={styles.yearTrendAxisLabel}>
+                        0
+                      </Text>
+                    </View>
+
+                    <View style={styles.yearTrendPlot}>
+                      <View style={styles.yearTrendGridLineTop} />
+                      <View style={styles.yearTrendGridLineMiddle} />
+                      <View style={styles.yearTrendBarsRow}>
+                        {yearTrendItems.map(item => {
+                          const barHeightPercent = item.amount > 0
+                            ? Math.max((item.amount / trendAxisMax) * 100, 5)
+                            : 0;
+                          const isSelected = item.monthKey === selectedTrendMonth?.monthKey;
+                          const isHighlighted = isSelected || item.isSelectedMonth || item.monthKey === currentMonthKey;
+
+                          return (
+                            <TouchableOpacity
+                              key={item.monthKey}
+                              style={styles.yearTrendBarColumn}
+                              accessibilityRole="button"
+                              accessibilityLabel={`${item.monthLabel} ${trendYear}, ${formatAnalyticsCurrency(item.amount, groupCurrency)}`}
+                              onPress={() => setSelectedTrendMonthKey(item.monthKey)}
+                              activeOpacity={0.78}
+                            >
+                              <View style={styles.yearTrendBarSlot}>
+                                <View
+                                  style={[
+                                    styles.yearTrendBarFill,
+                                    {
+                                      backgroundColor: item.color,
+                                      height: `${barHeightPercent}%`,
+                                    },
+                                    isHighlighted ? styles.yearTrendBarFillActive : null,
+                                    item.isFutureMonth ? styles.yearTrendBarFillMuted : null,
+                                  ]}
+                                />
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
-                      <View style={styles.expenseAmountWrap}>
-                        <Text style={styles.rowAmount}>{formatAmount(expense.amount, { currency: groupCurrency })}</Text>
-                        <Text style={styles.rowMeta}>{expense.date}</Text>
+                      {selectedTrendMonth && selectedTrendMonthIndex >= 0 ? (
+                        <View
+                          pointerEvents="none"
+                          style={[
+                            styles.yearTrendTooltip,
+                            selectedTrendMonthIndex <= 1
+                              ? styles.yearTrendTooltipStart
+                              : selectedTrendMonthIndex >= yearTrendItems.length - 2
+                                ? styles.yearTrendTooltipEnd
+                                : [
+                                  styles.yearTrendTooltipCentered,
+                                  { left: `${((selectedTrendMonthIndex + 0.5) / yearTrendItems.length) * 100}%` },
+                                ],
+                          ]}
+                        >
+                          <Text
+                            style={styles.yearTrendTooltipText}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.72}
+                          >
+                            {formatAnalyticsCurrency(selectedTrendMonth.amount, groupCurrency)}
+                          </Text>
+                          <View style={styles.yearTrendTooltipCaret} />
+                        </View>
+                      ) : null}
+                      <View style={styles.yearTrendMonthRow}>
+                        {yearTrendItems.map(item => {
+                          const isSelected = item.monthKey === selectedTrendMonth?.monthKey;
+                          const isHighlighted = isSelected || item.isSelectedMonth || item.monthKey === currentMonthKey;
+
+                          return (
+                            <Text
+                              key={item.monthKey}
+                              style={[
+                                styles.yearTrendMonthLabel,
+                                isHighlighted ? styles.yearTrendMonthLabelActive : null,
+                                item.isFutureMonth ? styles.yearTrendMonthLabelMuted : null,
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {item.monthLabel}
+                            </Text>
+                          );
+                        })}
                       </View>
                     </View>
-                  </GlassCard>
-                ))
-              )}
-            </AnalyticsSection>
-          </>
+                  </View>
+                </GlassCard>
+              </AnalyticsSection>
+            </View>
+          ) : (
+            <LockedPremiumAnalysisCard
+              checkingAccess={entitlementLoading}
+              onUpgradePress={() => navigation.navigate('UpgradeAi')}
+            />
+          )
         )}
 
         {activeTab === 'ai' && (
           <AiInsightsSection
             groupId={groupId}
             monthKey={monthKey}
-            hasMonthlyExpenses={summary.expenseCount > 0}
-            isSmallDataSet={summary.expenseCount > 0 && summary.expenseCount < 3}
+            hasMonthlyExpenses={basicPreview.expenseCount > 0}
+            isSmallDataSet={basicPreview.expenseCount > 0 && basicPreview.expenseCount < 3}
             onUpgradePress={() => navigation.navigate('UpgradeAi')}
           />
         )}
       </ScrollView>
+      <Modal
+        animationType="fade"
+        transparent
+        visible={isMemberSortOpen}
+        onRequestClose={() => setIsMemberSortOpen(false)}
+      >
+        <View style={styles.sortModalBackdrop}>
+          <TouchableOpacity
+            style={styles.sortModalDismissArea}
+            accessibilityRole="button"
+            accessibilityLabel="Close member sort options"
+            activeOpacity={1}
+            onPress={() => setIsMemberSortOpen(false)}
+          />
+          <View style={styles.sortSheet}>
+            <View style={styles.sortSheetHeader}>
+              <Text style={styles.sortSheetTitle}>Sort members</Text>
+              <TouchableOpacity
+                style={styles.sortCloseButton}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                onPress={() => setIsMemberSortOpen(false)}
+              >
+                <Icon name="close" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.sortOptionList}>
+              {MEMBER_SORT_OPTIONS.map(option => {
+                const isSelected = option.key === memberSort;
+                return (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[styles.sortOptionRow, isSelected ? styles.sortOptionRowActive : null]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    onPress={() => {
+                      setMemberSort(option.key);
+                      setIsMemberSortOpen(false);
+                    }}
+                  >
+                    <Text style={[styles.sortOptionText, isSelected ? styles.sortOptionTextActive : null]}>
+                      {option.label}
+                    </Text>
+                    {isSelected ? <Icon name="checkmark" size={18} color={colors.primary} /> : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
-  );
-}
-
-function renderMetricCard(
-  styles: ReturnType<typeof createStyles>,
-  colors: ThemeColors,
-  label: string,
-  value: string,
-  icon: string,
-  valueColor?: string,
-) {
-  return (
-    <GlassCard style={styles.metricCard}>
-      <Icon name={icon} size={22} color={colors.primary} />
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={[styles.metricValue, valueColor ? { color: valueColor } : null]} numberOfLines={1}>
-        {value}
-      </Text>
-    </GlassCard>
-  );
-}
-
-function renderCompactStat(
-  styles: ReturnType<typeof createStyles>,
-  colors: ThemeColors,
-  label: string,
-  value: string,
-  icon: string,
-) {
-  return (
-    <GlassCard style={styles.compactStatCard} padding="sm">
-      <Icon name={icon} size={18} color={colors.primary} />
-      <Text style={styles.compactStatLabel}>{label}</Text>
-      <Text style={styles.compactStatValue} numberOfLines={1}>{value}</Text>
-    </GlassCard>
   );
 }
 
 const sectionStyles = StyleSheet.create({
   container: {
+    gap: spacing.lg,
+  },
+  header: {
+    gap: spacing.xs,
+  },
+  title: {},
+  subtitle: {},
+});
+
+const createLockedStyles = (colors: ThemeColors, typography: ThemeTypography) => StyleSheet.create({
+  card: {
     gap: spacing.md,
+    backgroundColor: colors.surfaceContainer,
+    borderColor: colors.borderLight,
+  },
+  badge: {
+    alignSelf: 'flex-start',
+    minHeight: 26,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.primaryLight,
+  },
+  badgeText: {
+    ...typography.small,
+    color: colors.primary,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  copy: {
+    gap: spacing.xs,
   },
   title: {
-    marginTop: spacing.sm,
+    ...typography.heading3,
+  },
+  subtitle: {
+    ...typography.caption,
+  },
+  benefitRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  benefitChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    minHeight: 30,
+    maxWidth: '100%',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: borderRadius.full,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.surface,
+  },
+  chipDot: {
+    width: 5,
+    height: 5,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.primary,
+  },
+  benefitText: {
+    ...typography.small,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  cta: {
+    alignSelf: 'stretch',
+    marginTop: spacing.xs,
   },
 });
 
@@ -491,37 +1400,57 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     marginTop: spacing.md,
   },
   content: {
-    padding: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: spacing.huge,
     gap: spacing.lg,
   },
-  monthSwitcher: {
+  stickyTabShell: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: STICKY_TAB_AREA_HEIGHT,
+    zIndex: 10,
+    elevation: 8,
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  scrollArea: {
+    flex: 1,
+  },
+  headerMonthPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
+    justifyContent: 'center',
+    minHeight: 32,
+    maxWidth: 150,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceContainerHigh,
+    paddingHorizontal: spacing.xs,
+    gap: 2,
   },
-  monthButton: {
-    width: 44,
-    height: 44,
+  headerMonthStepButton: {
+    width: 24,
+    height: 24,
     borderRadius: borderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerHigh,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  monthLabelWrap: {
-    flex: 1,
-    alignItems: 'center',
+  headerMonthStepButtonDisabled: {
+    opacity: 0.45,
   },
-  monthEyebrow: {
-    ...typography.label,
-  },
-  monthLabel: {
-    ...typography.heading2,
+  headerMonthLabel: {
+    ...typography.captionBold,
+    maxWidth: 82,
     textAlign: 'center',
-    marginTop: spacing.xs,
+    color: colors.textPrimary,
+    includeFontPadding: false,
   },
   noticeCard: {
     flexDirection: 'row',
@@ -538,76 +1467,313 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     ...typography.caption,
     marginTop: spacing.xs,
   },
-  metricGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  metricCard: {
-    width: '48%',
-    minHeight: 118,
-  },
-  metricLabel: {
-    ...typography.label,
-    marginTop: spacing.md,
-  },
-  metricValue: {
-    ...typography.heading3,
-    marginTop: spacing.xs,
-  },
   tabBar: {
     flexDirection: 'row',
     backgroundColor: colors.surfaceContainerHigh,
-    borderRadius: borderRadius.md,
+    borderRadius: borderRadius.full,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.xs,
-    gap: spacing.xs,
+    padding: 3,
+    gap: 2,
   },
   tabButton: {
     flex: 1,
-    minHeight: 42,
-    borderRadius: borderRadius.sm,
+    minWidth: 0,
+    minHeight: 36,
+    borderRadius: borderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
+    paddingHorizontal: 2,
+    paddingVertical: spacing.xs,
   },
   tabButtonActive: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.primaryLight,
     borderWidth: 1,
     borderColor: colors.borderLight,
   },
   tabLabel: {
     ...typography.small,
     textAlign: 'center',
+    fontSize: 11,
+    lineHeight: 14,
+    flexShrink: 1,
+    maxWidth: '100%',
+    includeFontPadding: false,
   },
   tabLabelActive: {
     color: colors.primary,
     fontWeight: '700',
   },
-  overviewGrid: {
+  tabPanel: {
+    gap: spacing.xxl,
+  },
+  overviewHeroCard: {
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceContainer,
+    borderColor: colors.borderLight,
+  },
+  overviewHeroHeader: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  overviewHeroBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primaryLight,
+  },
+  overviewHeroLabel: {
+    ...typography.captionBold,
+    flex: 1,
+    color: colors.textSecondary,
+  },
+  overviewHeroAmount: {
+    fontSize: 30,
+    fontWeight: '800',
+    lineHeight: 36,
+    letterSpacing: 0,
+    color: colors.textPrimary,
+    includeFontPadding: false,
+  },
+  overviewHeroSubtitle: {
+    ...typography.small,
+    color: colors.textTertiary,
+  },
+  overviewMetricList: {
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  overviewMetricRow: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: spacing.md,
   },
-  compactStatCard: {
+  overviewMetricLabelWrap: {
     flex: 1,
-    minWidth: 96,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  overviewMetricLabel: {
+    ...typography.caption,
+    flexShrink: 1,
+    color: colors.textSecondary,
+  },
+  overviewMetricValue: {
+    ...typography.bodyBold,
+    maxWidth: '54%',
+    textAlign: 'right',
+    includeFontPadding: false,
+  },
+  memberBalanceList: {
+    gap: spacing.md,
+  },
+  memberSortButton: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.md,
+  },
+  memberSortButtonText: {
+    ...typography.small,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  memberLegendRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: spacing.md,
+    rowGap: spacing.xs,
+  },
+  memberLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.xs,
   },
-  compactStatLabel: {
-    ...typography.small,
-    textTransform: 'uppercase',
+  memberLegendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: borderRadius.full,
   },
-  compactStatValue: {
+  memberLegendDotPositive: {
+    backgroundColor: colors.owed,
+  },
+  memberLegendDotNegative: {
+    backgroundColor: colors.owes,
+  },
+  memberLegendText: {
+    ...typography.small,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  memberLegendSpacer: {
+    flex: 1,
+    minWidth: spacing.xs,
+  },
+  memberLegendHelp: {
+    ...typography.small,
+    flexBasis: '100%',
+    color: colors.textTertiary,
+  },
+  memberSettledBanner: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.owed,
+    backgroundColor: colors.owedLight,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  memberSettledText: {
+    ...typography.caption,
+    flex: 1,
+    color: colors.owed,
+    fontWeight: '600',
+  },
+  memberBalanceRow: {
+    gap: spacing.xs,
+    backgroundColor: colors.surfaceContainer,
+    borderColor: colors.borderLight,
+  },
+  memberBalanceTopLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  memberBalanceName: {
     ...typography.bodyBold,
+    flex: 1,
+    minWidth: 0,
+  },
+  memberBalanceAmount: {
+    ...typography.captionBold,
+    minWidth: 92,
+    maxWidth: 116,
+    textAlign: 'right',
+    includeFontPadding: false,
+  },
+  memberBalanceTrack: {
+    width: '100%',
+    height: 10,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.surfaceContainerHighest,
+    overflow: 'hidden',
+    flexDirection: 'row',
+  },
+  memberBalanceBar: {
+    height: 10,
+  },
+  memberBalanceBarPaid: {
+    backgroundColor: colors.owed,
+  },
+  memberBalanceBarShare: {
+    backgroundColor: colors.owes,
+  },
+  memberBalanceMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  memberBalancePaidMeta: {
+    ...typography.small,
+    flex: 1,
+    minWidth: 0,
+    color: colors.textTertiary,
+  },
+  memberBalanceShareMeta: {
+    ...typography.small,
+    flex: 1,
+    minWidth: 0,
+    color: colors.textTertiary,
+    textAlign: 'right',
+  },
+  sortModalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.48)',
+  },
+  sortModalDismissArea: {
+    flex: 1,
+  },
+  sortSheet: {
+    borderTopLeftRadius: borderRadius.xl,
+    borderTopRightRadius: borderRadius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceContainer,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+  },
+  sortSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  sortSheetTitle: {
+    ...typography.heading3,
+  },
+  sortCloseButton: {
+    width: 34,
+    height: 34,
+    borderRadius: borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceContainerHigh,
+  },
+  sortOptionList: {
+    gap: spacing.xs,
+  },
+  sortOptionRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  sortOptionRowActive: {
+    backgroundColor: colors.primaryLight,
+  },
+  sortOptionText: {
+    ...typography.body,
+    flex: 1,
+    color: colors.textSecondary,
+  },
+  sortOptionTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
   },
   rowCard: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   rowHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.md,
   },
@@ -617,17 +1783,20 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   rowAmount: {
     ...typography.bodyBold,
     textAlign: 'right',
+    flexShrink: 0,
+    minWidth: 108,
+    includeFontPadding: false,
   },
   rowMeta: {
     ...typography.caption,
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
   },
   barTrack: {
-    height: 8,
+    height: 10,
     borderRadius: borderRadius.full,
     backgroundColor: colors.surfaceContainerHighest,
     overflow: 'hidden',
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
   },
   barFill: {
     height: '100%',
@@ -636,10 +1805,14 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   },
   memberNameWrap: {
     flex: 1,
+    minWidth: 0,
   },
   memberNet: {
     ...typography.bodyBold,
     textAlign: 'right',
+    flexShrink: 0,
+    minWidth: 108,
+    includeFontPadding: false,
   },
   trendCard: {
     gap: spacing.md,
@@ -648,13 +1821,16 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    minHeight: 36,
   },
   trendMonth: {
     ...typography.captionBold,
-    width: 32,
+    width: 42,
+    flexShrink: 0,
   },
   trendTrack: {
     flex: 1,
+    minWidth: 48,
     height: 10,
     borderRadius: borderRadius.full,
     backgroundColor: colors.surfaceContainerHighest,
@@ -667,19 +1843,222 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) => Style
   },
   trendAmount: {
     ...typography.captionBold,
-    width: 86,
+    width: 112,
+    flexShrink: 0,
     textAlign: 'right',
+    includeFontPadding: false,
+  },
+  yearTrendCard: {
+    gap: spacing.lg,
+    backgroundColor: colors.surfaceContainer,
+    borderColor: colors.borderLight,
+  },
+  yearTrendSummaryRow: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  yearTrendSummaryLabel: {
+    ...typography.small,
+    color: colors.textTertiary,
+  },
+  yearTrendSummaryValue: {
+    ...typography.bodyBold,
+    marginTop: 2,
+    color: colors.textPrimary,
+  },
+  yearTrendSummaryAmount: {
+    ...typography.heading3,
+    maxWidth: '58%',
+    textAlign: 'right',
+    color: colors.primary,
+    includeFontPadding: false,
+  },
+  yearTrendChartArea: {
+    minHeight: 220,
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  yearTrendYAxis: {
+    width: 28,
+    justifyContent: 'space-between',
+    paddingTop: spacing.xs,
+    paddingBottom: 18,
+  },
+  yearTrendAxisLabel: {
+    ...typography.small,
+    color: colors.textTertiary,
+    textAlign: 'right',
+  },
+  yearTrendPlot: {
+    flex: 1,
+    minWidth: 0,
+    position: 'relative',
+    paddingTop: spacing.xs,
+  },
+  yearTrendGridLineTop: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: spacing.xs,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  yearTrendGridLineMiddle: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '48%',
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+  },
+  yearTrendBarsRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 0,
+  },
+  yearTrendBarColumn: {
+    flex: 1,
+    height: '100%',
+    minWidth: 0,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  yearTrendBarSlot: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'flex-end',
+    backgroundColor: colors.surfaceContainerHighest,
+    overflow: 'hidden',
+  },
+  yearTrendBarFill: {
+    width: '100%',
+    minHeight: 0,
+  },
+  yearTrendBarFillActive: {
+    opacity: 1,
+  },
+  yearTrendBarFillMuted: {
+    opacity: 0.28,
+  },
+  yearTrendTooltip: {
+    position: 'absolute',
+    top: spacing.sm,
+    zIndex: 4,
+    width: TREND_TOOLTIP_WIDTH,
+    minHeight: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.surfaceContainerHigh,
+    paddingHorizontal: spacing.xs,
+    elevation: 8,
+  },
+  yearTrendTooltipStart: {
+    left: spacing.xs,
+  },
+  yearTrendTooltipEnd: {
+    right: spacing.xs,
+  },
+  yearTrendTooltipCentered: {
+    transform: [{ translateX: -TREND_TOOLTIP_WIDTH / 2 }],
+  },
+  yearTrendTooltipText: {
+    ...typography.small,
+    color: colors.textPrimary,
+    fontWeight: '800',
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  yearTrendTooltipCaret: {
+    position: 'absolute',
+    bottom: -4,
+    width: 8,
+    height: 8,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.borderLight,
+    backgroundColor: colors.surfaceContainerHigh,
+    transform: [{ rotate: '45deg' }],
+  },
+  yearTrendMonthRow: {
+    height: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.xs,
+  },
+  yearTrendMonthLabel: {
+    ...typography.small,
+    fontSize: 9,
+    lineHeight: 12,
+    flex: 1,
+    minWidth: 0,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    includeFontPadding: false,
+  },
+  yearTrendMonthLabelActive: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  yearTrendMonthLabelMuted: {
+    color: colors.textTertiary,
+    opacity: 0.65,
   },
   expenseAmountWrap: {
     alignItems: 'flex-end',
+    flexShrink: 0,
+    minWidth: 112,
+  },
+  largestExpenseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    minHeight: 42,
+  },
+  largestExpenseInfo: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: spacing.xs,
+  },
+  largestExpenseMeta: {
+    ...typography.caption,
+    marginTop: spacing.xs,
+  },
+  largestExpenseAmountColumn: {
+    minWidth: 118,
+    maxWidth: 134,
+    flexShrink: 0,
+    alignItems: 'flex-end',
+  },
+  largestExpenseAmount: {
+    ...typography.bodyBold,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'right',
+    includeFontPadding: false,
+  },
+  largestExpenseDate: {
+    ...typography.small,
+    marginTop: 2,
+    textAlign: 'right',
   },
   insightCard: {
-    gap: spacing.md,
+    gap: spacing.lg,
   },
   insightRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   insightText: {
     ...typography.body,

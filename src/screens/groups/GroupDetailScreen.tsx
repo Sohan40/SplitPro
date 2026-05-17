@@ -20,9 +20,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import { expenseService } from '../../services/expenseService';
+import { warnUnlessPermissionDeniedAfterSignOut } from '../../services/firestoreErrorUtils';
 import type { Group } from '../../models/Group';
 import type { Expense } from '../../models/Expense';
 import type { GroupDetailScreenProps } from '../../navigation/types';
+import { getSettlementDisplay } from '../../utils/expenseDisplay';
 import EmptyState from '../../components/EmptyState';
 import CategoryIcon from '../../components/CategoryIcon';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -127,7 +129,7 @@ export default function GroupDetailScreen({
         },
       );
     } catch (error) {
-      console.error('Failed to subscribe to group details:', error);
+      warnUnlessPermissionDeniedAfterSignOut('Failed to subscribe to group details:', error);
       setLoading(false);
     }
 
@@ -146,10 +148,8 @@ export default function GroupDetailScreen({
     let color = colors.textSecondary;
 
     if (item.splitType === 'payment') {
-      const otherPerson = iPaid ? item.participants[0]?.name : item.paidBy.name;
-      descriptionText = iPaid
-        ? `You paid ${otherPerson}`
-        : `${otherPerson} paid you`;
+      const settlement = getSettlementDisplay(item, user?.id);
+      descriptionText = settlement.title;
       amountText = item.amount;
       color = colors.textSecondary;
     } else if (iPaid) {

@@ -1,6 +1,7 @@
 import { db } from './firebase';
 import type { Group } from '../models/Group';
 import { callAuthenticatedFunction } from './callableService';
+import { warnUnlessPermissionDeniedAfterSignOut } from './firestoreErrorUtils';
 
 const GROUPS_COLLECTION = 'groups';
 
@@ -40,7 +41,7 @@ export const groupService = {
         const sorted = groups.sort((a, b) => b.updatedAt - a.updatedAt);
         callback(sorted);
       }, error => {
-        console.warn("Error fetching user groups:", error);
+        warnUnlessPermissionDeniedAfterSignOut('Error fetching user groups:', error);
       });
   },
 
@@ -64,7 +65,7 @@ export const groupService = {
         callback(null);
       }
     }, error => {
-      console.warn("Error fetching group:", error);
+      warnUnlessPermissionDeniedAfterSignOut('Error fetching group:', error);
     });
   },
 

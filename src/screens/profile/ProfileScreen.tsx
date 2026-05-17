@@ -22,6 +22,7 @@ import type { AiEntitlement, UserAiUsage } from '../../models/User';
 import type { ProfileScreenProps } from '../../navigation/types';
 import { groupService } from '../../services/groupService';
 import { userService } from '../../services/userService';
+import { warnUnlessPermissionDeniedAfterSignOut } from '../../services/firestoreErrorUtils';
 import { calculateUserSummary } from '../../utils/balanceCalculator';
 import { AuthBackground } from '../auth/AuthScreenPrimitives';
 
@@ -86,17 +87,25 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   useEffect(() => {
     if (!user) return;
 
+    let isActive = true;
+
     const fetchSummary = async () => {
       try {
         const groups = await groupService.getUserGroups(user.id);
+        if (!isActive) return;
+
         const data = calculateUserSummary(groups, user.id);
         setSummary(data);
       } catch (error) {
-        console.error(error);
+        warnUnlessPermissionDeniedAfterSignOut('Failed to load profile summary:', error);
       }
     };
 
     fetchSummary();
+
+    return () => {
+      isActive = false;
+    };
   }, [user]);
 
   const openEditModal = () => {

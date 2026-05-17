@@ -311,6 +311,76 @@ async function main() {
       }));
     });
 
+    await runTest('group member can create notification for another group member', async () => {
+      await assertSucceeds(setDoc(doc(aliceDb, 'notifications/notification-1'), {
+        id: 'notification-1',
+        userId: 'bob',
+        title: 'New Expense',
+        body: 'Alice added "Dinner" to Apartment',
+        type: 'expense',
+        read: false,
+        createdAt: 1710000000000,
+        data: { groupId: 'group-1', expenseId: 'expense-1' },
+      }));
+    });
+
+    await runTest('notification recipient can read and mark own notification read', async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        await setDoc(doc(db, 'notifications/notification-2'), {
+          id: 'notification-2',
+          userId: 'bob',
+          title: 'New Expense',
+          body: 'Alice added "Dinner" to Apartment',
+          type: 'expense',
+          read: false,
+          createdAt: 1710000000000,
+          data: { groupId: 'group-1', expenseId: 'expense-1' },
+        });
+      });
+
+      await assertSucceeds(getDoc(doc(bobDb, 'notifications/notification-2')));
+      await assertSucceeds(getDocs(query(
+        collection(bobDb, 'notifications'),
+        where('userId', '==', 'bob'),
+        where('read', '==', false),
+      )));
+      await assertSucceeds(updateDoc(doc(bobDb, 'notifications/notification-2'), {
+        read: true,
+      }));
+    });
+
+    await runTest('users cannot read or mark another user notification read', async () => {
+      await assertFails(getDoc(doc(aliceDb, 'notifications/notification-2')));
+      await assertFails(updateDoc(doc(aliceDb, 'notifications/notification-2'), {
+        read: true,
+      }));
+    });
+
+    await runTest('notification writes are denied for non-members and non-recipient targets', async () => {
+      await assertFails(setDoc(doc(charlieDb, 'notifications/notification-3'), {
+        id: 'notification-3',
+        userId: 'bob',
+        title: 'New Expense',
+        body: 'Charlie added "Dinner" to Apartment',
+        type: 'expense',
+        read: false,
+        createdAt: 1710000000000,
+        data: { groupId: 'group-1', expenseId: 'expense-1' },
+      }));
+
+      await assertFails(setDoc(doc(aliceDb, 'notifications/notification-4'), {
+        id: 'notification-4',
+        userId: 'charlie',
+        title: 'New Expense',
+        body: 'Alice added "Dinner" to Apartment',
+        type: 'expense',
+        read: false,
+        createdAt: 1710000000000,
+        data: { groupId: 'group-1', expenseId: 'expense-1' },
+      }));
+    });
+
     await runTest('group AI insight read is member-only', async () => {
       await testEnv.withSecurityRulesDisabled(async (context) => {
         const db = context.firestore();

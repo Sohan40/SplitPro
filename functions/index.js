@@ -88,7 +88,6 @@ exports.sendPushOnNotificationCreate = onDocumentCreated(
       },
       android: {
         notification: {
-          channelId: "splitpro_default",
           priority: "high",
           defaultSound: true,
         },

@@ -1,5 +1,6 @@
 import { db } from './firebase';
 import type { Expense } from '../models/Expense';
+import { warnUnlessPermissionDeniedAfterSignOut } from './firestoreErrorUtils';
 
 const EXPENSES_COLLECTION = 'expenses';
 
@@ -55,7 +56,7 @@ export const expenseService = {
         const sorted = expenses.sort((a, b) => b.createdAt - a.createdAt);
         callback(sorted);
       }, error => {
-        console.warn("Error fetching group expenses:", error);
+        warnUnlessPermissionDeniedAfterSignOut('Error fetching group expenses:', error);
       });
   },
 
@@ -76,7 +77,7 @@ export const expenseService = {
         callback(null);
       }
     }, error => {
-      console.warn("Error fetching expense:", error);
+      warnUnlessPermissionDeniedAfterSignOut('Error fetching expense:', error);
     });
   },
 
@@ -117,7 +118,7 @@ export const expenseService = {
         });
         callback(sorted);
       }, error => {
-        console.warn("Error fetching user expenses:", error);
+        warnUnlessPermissionDeniedAfterSignOut('Error fetching user expenses:', error);
       });
   },
 };

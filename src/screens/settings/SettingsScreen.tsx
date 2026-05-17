@@ -9,6 +9,7 @@ import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import { userService } from '../../services/userService';
 import { auth } from '../../services/firebase';
+import { revokeGoogleAccess } from '../../services/googleAuthService';
 import { calculateUserSummary, hasOutstandingBalances } from '../../utils/balanceCalculator';
 
 const APPEARANCE_OPTIONS: { value: ThemePreference; label: string; icon: string }[] = [
@@ -65,6 +66,7 @@ export default function SettingsScreen() {
               }
 
               await userService.deleteUser(user.id);
+              await revokeGoogleAccess();
               await auth.currentUser?.delete();
             } catch (error: any) {
               console.error(error);

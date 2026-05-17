@@ -13,9 +13,11 @@ import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { expenseService } from '../../services/expenseService';
 import { groupService } from '../../services/groupService';
+import { warnUnlessPermissionDeniedAfterSignOut } from '../../services/firestoreErrorUtils';
 import type { Expense } from '../../models/Expense';
 import type { ActivityScreenProps } from '../../navigation/types';
 import type { CurrencyCode } from '../../utils/currency';
+import { getSettlementDisplay } from '../../utils/expenseDisplay';
 import EmptyState from '../../components/EmptyState';
 import GlassCard from '../../components/GlassCard';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -68,11 +70,14 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
   useEffect(() => {
     if (!user) return;
 
+    let isActive = true;
     let expensesUnsubscribe: () => void;
 
     const setupSubscription = async () => {
       try {
         const groups = await groupService.getUserGroups(user.id);
+        if (!isActive) return;
+
         const groupIds = groups.map(g => g.id);
         setGroupCurrencies(
           groups.reduce<Record<string, CurrencyCode>>((acc, group) => {
@@ -82,18 +87,22 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
         );
 
         expensesUnsubscribe = expenseService.subscribeToUserExpenses(groupIds, (data) => {
+          if (!isActive) return;
           setActivities(data);
           setLoading(false);
         });
       } catch (error) {
-        console.error('Failed to setup activity subscription:', error);
-        setLoading(false);
+        warnUnlessPermissionDeniedAfterSignOut('Failed to setup activity subscription:', error);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     };
 
     setupSubscription();
 
     return () => {
+      isActive = false;
       if (expensesUnsubscribe) expensesUnsubscribe();
     };
   }, [currency, user]);
@@ -103,14 +112,18 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
   const renderItem = ({ item, index, section }: { item: Expense; index: number; section: { data: Expense[] } }) => {
     const iPaid = item.paidBy.uid === user?.id;
     const participantMe = item.participants.find(p => p.uid === user?.id);
+    const itemCurrency = groupCurrencies[item.groupId] || currency;
 
     let color = colors.textSecondary;
     let label = '';
     let amount = 0;
+    let subtext = `${item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid ${formatAmount(item.amount, { currency: itemCurrency })}`;
 
     if (item.splitType === 'payment') {
-      label = iPaid ? 'You paid' : 'You received';
+      const settlement = getSettlementDisplay(item, user?.id);
+      label = settlement.label;
       amount = item.amount;
+      subtext = settlement.title;
       color = colors.textSecondary;
     } else if (iPaid) {
       const myShare = participantMe ? participantMe.amount : 0;
@@ -127,7 +140,6 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
 
     const iconName = CATEGORY_ICON_MAP[item.category?.toLowerCase()] || 'ellipsis-horizontal-circle';
     const iconColor = color === colors.owes ? colors.owes : color === colors.owed ? colors.owed : colors.primary;
-    const itemCurrency = groupCurrencies[item.groupId] || currency;
 
     return (
       <TouchableOpacity
@@ -146,7 +158,7 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
             <View style={styles.info}>
               <Text style={styles.description} numberOfLines={1}>{item.description}</Text>
               <Text style={styles.subtext} numberOfLines={1}>
-                {item.paidBy.uid === user?.id ? 'You' : item.paidBy.name} paid {formatAmount(item.amount, { currency: itemCurrency })}
+                {subtext}
               </Text>
             </View>
             <View style={styles.balance}>

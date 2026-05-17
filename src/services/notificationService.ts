@@ -1,5 +1,6 @@
 import { db } from './firebase';
 import type { Notification } from '../models/Notification';
+import { warnUnlessPermissionDeniedAfterSignOut } from './firestoreErrorUtils';
 
 const NOTIFICATIONS_COLLECTION = 'notifications';
 
@@ -56,7 +57,7 @@ export const notificationService = {
         const sorted = notifications.sort((a, b) => b.createdAt - a.createdAt);
         callback(sorted);
       }, error => {
-        console.warn("Error fetching notifications:", error);
+        warnUnlessPermissionDeniedAfterSignOut('Error fetching notifications:', error);
       });
   },
 
@@ -71,7 +72,7 @@ export const notificationService = {
         const sorted = notifications.sort((a, b) => b.createdAt - a.createdAt);
         callback(sorted);
       }, error => {
-        console.warn("Error fetching notifications:", error);
+        warnUnlessPermissionDeniedAfterSignOut('Error fetching notifications:', error);
       });
   },
 

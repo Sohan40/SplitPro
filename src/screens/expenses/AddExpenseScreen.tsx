@@ -408,7 +408,7 @@ export default function AddExpenseScreen({
       if (expenseId) {
         await expenseService.updateExpense(expenseId, expenseData);
       } else {
-        await expenseService.addExpense(expenseData);
+        const newExpenseId = await expenseService.addExpense(expenseData);
 
         const otherMemberIds = group.memberIds.filter((id) => id !== user.id);
         if (otherMemberIds.length > 0) {
@@ -420,7 +420,7 @@ export default function AddExpenseScreen({
               title: 'New Expense',
               body: `${user.name} added "${description}" to ${groupName}`,
               type: 'expense',
-              data: { groupId, expenseId: expenseId || '' },
+              data: { groupId, expenseId: newExpenseId },
             }
           ).catch((err: any) => console.warn('Notification creation failed:', err));
         }

@@ -8,6 +8,12 @@ const CATEGORY_LABELS = {
   shopping: "Shopping",
   entertainment: "Entertainment",
   health: "Health",
+  education: "Education",
+  subscriptions: "Subscriptions",
+  gifts: "Gifts",
+  pets: "Pets",
+  fitness: "Fitness",
+  sports: "Sports",
   others: "Other",
   other: "Other",
   payment: "Other",
@@ -94,6 +100,67 @@ function buildMonthlyTrend(expenses, selectedMonthKey) {
     .map(([monthKey, amount]) => ({ monthKey, amount: roundMoney(amount) }));
 }
 
+function buildWeekendPattern(expenses) {
+  const stats = {
+    weekdayAmount: 0,
+    weekdayCount: 0,
+    weekendAmount: 0,
+    weekendCount: 0,
+  };
+
+  expenses.forEach((expense) => {
+    const day = new Date(Number(expense.createdAt)).getDay();
+    const isWeekend = day === 0 || day === 6;
+    if (isWeekend) {
+      stats.weekendAmount += Number(expense.amount);
+      stats.weekendCount += 1;
+    } else {
+      stats.weekdayAmount += Number(expense.amount);
+      stats.weekdayCount += 1;
+    }
+  });
+
+  const weekdayAverage = stats.weekdayCount
+    ? stats.weekdayAmount / stats.weekdayCount
+    : 0;
+  const weekendAverage = stats.weekendCount
+    ? stats.weekendAmount / stats.weekendCount
+    : 0;
+
+  return {
+    weekdayAverage: roundMoney(weekdayAverage),
+    weekendAverage: roundMoney(weekendAverage),
+    weekendShare: roundMoney(stats.weekdayAmount + stats.weekendAmount > 0
+      ? (stats.weekendAmount / (stats.weekdayAmount + stats.weekendAmount)) * 100
+      : 0),
+  };
+}
+
+function buildSettlementHints(group) {
+  const balances = group.balances || {};
+  const memberNames = new Map((group.members || []).map((member) => [
+    String(member.uid || ""),
+    sanitizeText(member.name, "Unknown member", 48),
+  ]));
+  const debtors = Object.entries(balances)
+    .filter(([, balance]) => Number(balance) < -0.01)
+    .sort((a, b) => Number(a[1]) - Number(b[1]));
+  const creditors = Object.entries(balances)
+    .filter(([, balance]) => Number(balance) > 0.01)
+    .sort((a, b) => Number(b[1]) - Number(a[1]));
+  const topDebtor = debtors[0];
+  const topCreditor = creditors[0];
+
+  if (!topDebtor || !topCreditor) {
+    return [];
+  }
+
+  const amount = Math.min(Math.abs(Number(topDebtor[1])), Number(topCreditor[1]));
+  return [
+    `${memberNames.get(topDebtor[0]) || "One member"} could prioritize settling about INR ${roundMoney(amount)} with ${memberNames.get(topCreditor[0]) || "another member"}.`,
+  ];
+}
+
 function formatDate(timestamp) {
   const date = new Date(timestamp);
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -147,11 +214,22 @@ function buildSpendContext({ group, expenses, monthKey }) {
     .sort((a, b) => b.paid - a.paid || a.displayName.localeCompare(b.displayName))
     .slice(0, 20);
 
+  const topPayer = memberStats.find((member) => member.paid > 0);
+  const topCategory = categoryBreakdown[0];
+  const monthlyTrend = buildMonthlyTrend(groupExpenses, monthKey);
+  const selectedTrendIndex = monthlyTrend.findIndex((item) => item.monthKey === monthKey);
+  const previousTrend = selectedTrendIndex > 0 ? monthlyTrend[selectedTrendIndex - 1] : null;
+  const currentTrend = monthlyTrend.find((item) => item.monthKey === monthKey) || null;
+  const trendChange = previousTrend && currentTrend
+    ? roundMoney(currentTrend.amount - previousTrend.amount)
+    : null;
+
   const topExpenses = [...selectedExpenses]
     .sort((a, b) => Number(b.amount) - Number(a.amount))
     .slice(0, 8)
     .map((expense) => ({
       title: sanitizeText(expense.description, "Untitled expense", 80),
+      descriptionHint: sanitizeText(expense.description, "Untitled expense", 40),
       amount: roundMoney(expense.amount),
       category: normalizeCategory(expense.category),
       paidByName: sanitizeText(expense.paidBy?.name, "Unknown payer", 48),
@@ -164,9 +242,32 @@ function buildSpendContext({ group, expenses, monthKey }) {
     currency: "INR",
     totalSpend,
     expenseCount: selectedExpenses.length,
+    dataQuality: {
+      limitedData: selectedExpenses.length < 3,
+      reason: selectedExpenses.length < 3
+        ? "Fewer than three expenses are available for the selected month."
+        : "Enough expense data is available for directional patterns.",
+    },
     categoryBreakdown,
     memberStats,
-    monthlyTrend: buildMonthlyTrend(groupExpenses, monthKey),
+    monthlyTrend,
+    trendSummary: {
+      previousMonthSpend: previousTrend ? previousTrend.amount : null,
+      selectedMonthSpend: currentTrend ? currentTrend.amount : totalSpend,
+      monthOverMonthChange: trendChange,
+    },
+    concentration: {
+      topCategory: topCategory ? {
+        category: topCategory.category,
+        percentage: topCategory.percentage,
+      } : null,
+      topPayer: topPayer ? {
+        displayName: topPayer.displayName,
+        paidShare: totalSpend > 0 ? Math.round((topPayer.paid / totalSpend) * 100) : 0,
+      } : null,
+    },
+    weekendPattern: buildWeekendPattern(selectedExpenses),
+    settlementHints: buildSettlementHints(group),
     topExpenses,
   };
 }

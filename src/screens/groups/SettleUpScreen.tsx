@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import { expenseService } from '../../services/expenseService';
+import { isFirestorePermissionDeniedAfterSignOut } from '../../services/firestoreErrorUtils';
 import type { Group } from '../../models/Group';
 import type { SettleUpScreenProps } from '../../navigation/types';
 import { simplifyDebts, Debt } from '../../utils/debtSimplifier';
@@ -70,6 +71,11 @@ export default function SettleUpScreen({ route, navigation }: SettleUpScreenProp
         setLoading(false);
       });
     } catch (error) {
+      if (isFirestorePermissionDeniedAfterSignOut(error)) {
+        setLoading(false);
+        return;
+      }
+
       console.error('Failed to subscribe to group details:', error);
       Alert.alert('Error', 'Failed to load balances');
       setLoading(false);

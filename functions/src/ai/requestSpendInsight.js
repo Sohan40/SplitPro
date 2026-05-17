@@ -134,17 +134,18 @@ function createRequestSpendInsightFunction(db) {
     if (cachedDoc.exists) {
       const cached = cachedDoc.data();
       if (cached?.structured?.title && cached?.structured?.summary) {
+        const cachedValidation = validateAiOutput(JSON.stringify(cached.structured));
         return {
           cached: true,
           content: cached.content || cached.structured.summary,
-          structured: cached.structured,
+          structured: cachedValidation.ok ? cachedValidation.value : cached.structured,
           source: "cache",
           usage,
         };
       }
     }
 
-    if (context.expenseCount < 2) {
+    if (context.expenseCount < 3) {
       return responseFromInsight({
         insight: deterministicFallback(context),
         cached: false,
