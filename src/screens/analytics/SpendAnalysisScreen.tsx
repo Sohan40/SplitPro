@@ -16,6 +16,7 @@ import GlassCard from '../../components/GlassCard';
 import { borderRadius, spacing, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useCurrency } from '../../context/CurrencyContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 import AiInsightsSection from '../../features/ai/components/AiInsightsSection';
 import { useAiEntitlement } from '../../features/ai/hooks/useAiEntitlement';
 import CategoryDonutChart, { type CategoryDonutItem } from '../../features/analytics/components/CategoryDonutChart';
@@ -370,6 +371,17 @@ function hasSpendHistory(group: Group, expenses: Expense[]): boolean {
   ));
 }
 
+function formatCustomCategory(category: string): string {
+  return category
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ') || 'Other';
+}
+
 function normalizePreviewCategory(category?: string): string {
   const labels: Record<string, string> = {
     food: 'Food',
@@ -391,7 +403,9 @@ function normalizePreviewCategory(category?: string): string {
     other: 'Other',
   };
 
-  return labels[String(category || '').toLowerCase()] || 'Other';
+  const rawCategory = String(category || '').trim();
+  if (!rawCategory) return 'Other';
+  return labels[rawCategory.toLowerCase()] || formatCustomCategory(rawCategory);
 }
 
 function normalizeBreakdownCategory(category?: string): string {
@@ -410,7 +424,9 @@ function normalizeBreakdownCategory(category?: string): string {
     payment: 'Other',
   };
 
-  return labels[String(category || '').toLowerCase()] || 'Other';
+  const rawCategory = String(category || '').trim();
+  if (!rawCategory) return 'Other';
+  return labels[rawCategory.toLowerCase()] || formatCustomCategory(rawCategory);
 }
 
 function getCategoryItemId(label: string): string {
@@ -578,6 +594,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
   const { groupId, groupName, monthKey: initialMonthKey } = route.params;
   const { currency, formatAmount } = useCurrency();
   const { theme, isDark } = useTheme();
+  const { user } = useAuth();
   const { isAiEntitled, isLoading: entitlementLoading } = useAiEntitlement();
   const insets = useSafeAreaInsets();
   const { colors, typography } = theme;
@@ -591,6 +608,10 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
       },
     ],
     [insets.bottom, styles.content],
+  );
+  const sortSheetInsetStyle = useMemo(
+    () => ({ paddingBottom: Math.max(insets.bottom + spacing.lg, spacing.xxl) }),
+    [insets.bottom],
   );
 
   const [group, setGroup] = useState<Group | null>(null);
@@ -1243,8 +1264,12 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
           <AiInsightsSection
             groupId={groupId}
             monthKey={monthKey}
-            hasMonthlyExpenses={basicPreview.expenseCount > 0}
-            isSmallDataSet={basicPreview.expenseCount > 0 && basicPreview.expenseCount < 3}
+            hasMonthlyExpenses={isPremium ? (summary?.expenseCount ?? 0) > 0 : false}
+            isSmallDataSet={isPremium ? (summary?.expenseCount ?? 0) > 0 && (summary?.expenseCount ?? 0) < 3 : false}
+            summary={isPremium ? summary : null}
+            expenses={isPremium ? expenses : undefined}
+            currentUserId={isPremium ? user?.id : undefined}
+            groupCurrency={isPremium ? groupCurrency : currency}
             onUpgradePress={() => navigation.navigate('UpgradeAi')}
           />
         )}
@@ -1252,6 +1277,8 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
       <Modal
         animationType="fade"
         transparent
+        statusBarTranslucent
+        navigationBarTranslucent
         visible={isMemberSortOpen}
         onRequestClose={() => setIsMemberSortOpen(false)}
       >
@@ -1263,7 +1290,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
             activeOpacity={1}
             onPress={() => setIsMemberSortOpen(false)}
           />
-          <View style={styles.sortSheet}>
+          <View style={[styles.sortSheet, sortSheetInsetStyle]}>
             <View style={styles.sortSheetHeader}>
               <Text style={styles.sortSheetTitle}>Sort members</Text>
               <TouchableOpacity

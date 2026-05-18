@@ -55,6 +55,17 @@ const CATEGORY_LABELS: Record<string, string> = {
   payment: 'Other',
 };
 
+function formatCustomCategory(category: string): string {
+  return category
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ') || 'Other';
+}
+
 export function formatCurrency(amount: number, currency = 'INR'): string {
   try {
     return new Intl.NumberFormat('en-IN', {
@@ -82,8 +93,9 @@ function roundMoney(value: number): number {
 }
 
 function normalizeCategory(category?: string): string {
-  if (!category) return 'Other';
-  return CATEGORY_LABELS[category.toLowerCase()] || 'Other';
+  const rawCategory = String(category || '').trim();
+  if (!rawCategory) return 'Other';
+  return CATEGORY_LABELS[rawCategory.toLowerCase()] || formatCustomCategory(rawCategory);
 }
 
 function isSpendExpense(expense: Expense): boolean {

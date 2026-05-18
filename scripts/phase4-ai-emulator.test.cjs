@@ -264,6 +264,9 @@ async function main() {
     assert(result.cached === false, 'First response should not be cached');
     assert(result.source === 'openai', `Expected mocked OpenAI path, got ${result.source}`);
     assert(result.structured?.title === 'Mock AI spend insight', 'Expected mocked structured response');
+    assert(typeof result.structured?.groupHealth?.score === 'number', 'Expected structured health score');
+    assert(result.structured?.keyInsights?.category, 'Expected structured key insights');
+    assert(!result.structured?.nextActions, 'Next actions should not be returned');
     assert(result.usage.used === 1, `Expected usage used=1, got ${result.usage.used}`);
   });
 

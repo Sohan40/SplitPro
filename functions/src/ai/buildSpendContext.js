@@ -161,6 +161,84 @@ function buildSettlementHints(group) {
   ];
 }
 
+function getHealthLabel(score) {
+  if (score >= 85) return "Excellent";
+  if (score >= 70) return "Good";
+  if (score >= 50) return "Needs attention";
+  return "Unbalanced";
+}
+
+function buildGroupHealth({ totalSpend, expenseCount, categoryBreakdown, memberStats }) {
+  let score = 100;
+  const tips = [];
+  const totalAbsNet = memberStats.reduce((sum, member) => sum + Math.abs(Number(member.net || 0)), 0);
+  const topCategoryShare = Number(categoryBreakdown[0]?.percentage || 0);
+  const topPaid = Math.max(...memberStats.map((member) => Number(member.paid || 0)), 0);
+  const topPayerShare = totalSpend > 0 ? Math.round((topPaid / totalSpend) * 100) : 0;
+  const activeMembers = memberStats.filter((member) => (
+    Number(member.paid || 0) > 0 || Number(member.owedShare || 0) > 0
+  )).length;
+  const participationShare = memberStats.length > 0
+    ? Math.round((activeMembers / memberStats.length) * 100)
+    : 0;
+  const settlementLoad = totalSpend > 0
+    ? Math.round((totalAbsNet / (totalSpend * 2)) * 100)
+    : 0;
+
+  if (settlementLoad > 35) {
+    score -= 20;
+    tips.push("Consider settling the largest open balances before adding many more expenses.");
+  } else if (settlementLoad > 18) {
+    score -= 10;
+    tips.push("A quick settlement round could keep balances easier to manage.");
+  }
+
+  if (topPayerShare > 70) {
+    score -= 15;
+    tips.push("Try rotating who pays so one person does not carry most expenses.");
+  } else if (topPayerShare > 50) {
+    score -= 8;
+    tips.push("One member is paying a lot, so settling sooner may help the group feel balanced.");
+  }
+
+  if (topCategoryShare >= 60) {
+    score -= 15;
+    tips.push(`Review ${categoryBreakdown[0]?.category || "the top category"} because it makes up most of this month's spend.`);
+  } else if (topCategoryShare >= 40) {
+    score -= 8;
+    tips.push(`Keep an eye on ${categoryBreakdown[0]?.category || "the top category"} next month.`);
+  }
+
+  if (participationShare < 50 && memberStats.length > 1) {
+    score -= 10;
+    tips.push("Some members have little activity this month; check whether all shared expenses were recorded.");
+  } else if (participationShare < 75 && memberStats.length > 2) {
+    score -= 5;
+  }
+
+  if (expenseCount < 3) {
+    score -= 15;
+    tips.push("Add a few more expenses before treating these patterns as reliable.");
+  } else if (expenseCount < 6) {
+    score -= 8;
+    tips.push("More expense entries will make the monthly pattern clearer.");
+  }
+
+  const boundedScore = Math.max(35, Math.min(100, Math.round(score)));
+  const defaultTips = [
+    "Keep categories clean so future insights are easier to understand.",
+    "Settle balances regularly so the group stays simple.",
+    "Use this as a SplitPro app insight, not financial advice.",
+  ];
+
+  return {
+    score: boundedScore,
+    label: getHealthLabel(boundedScore),
+    explanation: "SplitPro's app score looks at settlement cleanliness, payment spread, category concentration, member participation, and tracking volume. It is not financial advice.",
+    tips: [...tips, ...defaultTips].slice(0, 3),
+  };
+}
+
 function formatDate(timestamp) {
   const date = new Date(timestamp);
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -216,6 +294,12 @@ function buildSpendContext({ group, expenses, monthKey }) {
 
   const topPayer = memberStats.find((member) => member.paid > 0);
   const topCategory = categoryBreakdown[0];
+  const groupHealth = buildGroupHealth({
+    totalSpend,
+    expenseCount: selectedExpenses.length,
+    categoryBreakdown,
+    memberStats,
+  });
   const monthlyTrend = buildMonthlyTrend(groupExpenses, monthKey);
   const selectedTrendIndex = monthlyTrend.findIndex((item) => item.monthKey === monthKey);
   const previousTrend = selectedTrendIndex > 0 ? monthlyTrend[selectedTrendIndex - 1] : null;
@@ -228,8 +312,6 @@ function buildSpendContext({ group, expenses, monthKey }) {
     .sort((a, b) => Number(b.amount) - Number(a.amount))
     .slice(0, 8)
     .map((expense) => ({
-      title: sanitizeText(expense.description, "Untitled expense", 80),
-      descriptionHint: sanitizeText(expense.description, "Untitled expense", 40),
       amount: roundMoney(expense.amount),
       category: normalizeCategory(expense.category),
       paidByName: sanitizeText(expense.paidBy?.name, "Unknown payer", 48),
@@ -250,6 +332,7 @@ function buildSpendContext({ group, expenses, monthKey }) {
     },
     categoryBreakdown,
     memberStats,
+    groupHealth,
     monthlyTrend,
     trendSummary: {
       previousMonthSpend: previousTrend ? previousTrend.amount : null,

@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import HomeScreen from '../screens/home/HomeScreen';
 import GroupStack from './GroupStack';
@@ -21,6 +22,8 @@ const TAB_ICONS: Record<string, { focused: string; default: string }> = {
 export default function MainTabs() {
   const { theme } = useTheme();
   const { colors } = theme;
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 8);
 
   return (
     <Tab.Navigator
@@ -41,8 +44,8 @@ export default function MainTabs() {
           backgroundColor: colors.surface,
           borderTopColor: colors.borderLight,
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
+          height: 52 + bottomInset,
+          paddingBottom: bottomInset,
           paddingTop: 4,
         },
         tabBarLabelStyle: styles.tabBarLabel,

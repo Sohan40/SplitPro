@@ -1,5 +1,26 @@
 # SplitPro Release Notes
 
+## v1.0.8 (Build 13) - May 18, 2026
+
+### Premium Analysis
+- Added premium gating for advanced spend analysis and AI insights
+- Redesigned Analysis tabs with compact sticky navigation and a cleaner Overview
+- Added interactive category donut chart with custom category support and entrance animation
+- Redesigned Members analytics with compact paid-vs-share balance rows and sorting
+- Redesigned Trends with a yearly vertical chart and interactive value tooltip
+
+### SplitPro AI
+- Reworked the AI tab into compact premium action rows with bottom-sheet details
+- Added Group Health Score, My Insights, structured monthly insights, settlements, budget suggestions, and compact Ask AI responses
+- Hardened AI response validation and deterministic fallbacks for invalid or limited data
+
+### UX & Reliability
+- Fixed Google logout so account selection can be shown again
+- Improved Android bottom navigation and modal safe-area handling
+- Improved recent expense/settlement display accuracy and category analytics refresh behavior
+
+---
+
 ## v1.0.6 (Build 7) - May 12, 2026
 
 ### Email Verification

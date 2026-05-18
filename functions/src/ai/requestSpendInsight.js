@@ -94,7 +94,7 @@ function getOpenAiKey() {
 function responseFromInsight({ insight, cached, source, usage }) {
   return {
     cached,
-    content: insight.summary,
+    content: insight.aiSummary || insight.summary,
     structured: insight,
     source,
     usage,
@@ -134,12 +134,13 @@ function createRequestSpendInsightFunction(db) {
     if (cachedDoc.exists) {
       const cached = cachedDoc.data();
       if (cached?.structured?.title && cached?.structured?.summary) {
-        const cachedValidation = validateAiOutput(JSON.stringify(cached.structured));
+        const cachedValidation = validateAiOutput(JSON.stringify(cached.structured), context);
+        const insight = cachedValidation.value;
         return {
           cached: true,
-          content: cached.content || cached.structured.summary,
-          structured: cachedValidation.ok ? cachedValidation.value : cached.structured,
-          source: "cache",
+          content: cached.content || insight.aiSummary || insight.summary,
+          structured: insight,
+          source: cachedValidation.ok ? "cache" : "cache_validation_fallback",
           usage,
         };
       }
@@ -164,12 +165,6 @@ function createRequestSpendInsightFunction(db) {
       });
     }
 
-    const updatedUsage = await incrementUsageTransaction(db, uid, {
-      groupId: input.groupId,
-      feature: input.feature,
-      monthKey: input.monthKey,
-      cached: false,
-    });
     const prompt = buildPrompt({
       type: input.feature,
       context,
@@ -179,29 +174,43 @@ function createRequestSpendInsightFunction(db) {
 
     try {
       const openAiResult = await callOpenAi({ apiKey, prompt, requestId });
-      const validation = validateAiOutput(openAiResult.outputText);
-      const insight = validation.ok ? validation.value : deterministicFallback(context);
+      const validation = validateAiOutput(openAiResult.outputText, context);
+      const insight = validation.value;
       const source = validation.ok ? "openai" : "validation_fallback";
 
-      if (validation.ok) {
-        await cacheRef.set({
-          feature: input.feature,
-          monthKey: input.monthKey,
-          questionHash: buildAiInsightCacheId({
-            groupId: input.groupId,
-            feature: input.feature,
-            monthKey: input.monthKey,
-            question: input.question,
-            latestExpenseUpdatedAt: 0,
-          }),
-          latestExpenseUpdatedAt,
-          content: insight.summary,
-          structured: insight,
-          model: openAiResult.model,
-          tokenUsage: openAiResult.usage || null,
-          createdAt: FieldValue.serverTimestamp(),
+      if (!validation.ok) {
+        return responseFromInsight({
+          insight,
+          cached: false,
+          source,
+          usage,
         });
       }
+
+      const updatedUsage = await incrementUsageTransaction(db, uid, {
+        groupId: input.groupId,
+        feature: input.feature,
+        monthKey: input.monthKey,
+        cached: false,
+      });
+
+      await cacheRef.set({
+        feature: input.feature,
+        monthKey: input.monthKey,
+        questionHash: buildAiInsightCacheId({
+          groupId: input.groupId,
+          feature: input.feature,
+          monthKey: input.monthKey,
+          question: input.question,
+          latestExpenseUpdatedAt: 0,
+        }),
+        latestExpenseUpdatedAt,
+        content: insight.aiSummary || insight.summary,
+        structured: insight,
+        model: openAiResult.model,
+        tokenUsage: openAiResult.usage || null,
+        createdAt: FieldValue.serverTimestamp(),
+      });
 
       return responseFromInsight({
         insight,
@@ -210,12 +219,16 @@ function createRequestSpendInsightFunction(db) {
         usage: updatedUsage,
       });
     } catch (error) {
+      if (error instanceof HttpsError) {
+        throw error;
+      }
+
       console.warn("AI insight generation failed:", error.message);
       return responseFromInsight({
         insight: deterministicFallback(context),
         cached: false,
         source: "error_fallback",
-        usage: updatedUsage,
+        usage,
       });
     }
   });

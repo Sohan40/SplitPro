@@ -113,6 +113,22 @@ describe('calculateSpendAnalytics', () => {
     ]);
   });
 
+  it('keeps custom categories visible in the breakdown', () => {
+    const summary = calculateSpendAnalytics({
+      group,
+      monthKey: '2026-05',
+      expenses: [
+        expense({ id: 'fuel-1', amount: 250, category: 'fuel' as any }),
+        expense({ id: 'home-1', amount: 150, category: 'home_supplies' as any }),
+      ],
+    });
+
+    expect(summary.categoryBreakdown).toEqual([
+      { category: 'Fuel', amount: 250, percentage: 63 },
+      { category: 'Home Supplies', amount: 150, percentage: 38 },
+    ]);
+  });
+
   it('formats month keys from timestamps', () => {
     expect(getMonthKey(new Date('2026-05-01T00:00:00Z').getTime())).toBe('2026-05');
   });

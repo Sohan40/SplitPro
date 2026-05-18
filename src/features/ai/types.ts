@@ -11,16 +11,29 @@ export type AiUsageSnapshot = {
   remaining?: number;
 };
 
+export type AiHealthLabel = 'Excellent' | 'Good' | 'Needs attention' | 'Unbalanced';
+
+export type AiGroupHealth = {
+  score: number;
+  label: AiHealthLabel;
+  explanation: string;
+  tips: string[];
+};
+
+export type AiKeyInsights = {
+  category: string;
+  concentration: string;
+  memberPayment: string;
+};
+
 export type AiInsight = {
   title: string;
   summary: string;
-  keyInsights: string[];
-  unusualPatterns: string[];
-  memberInsights: string[];
+  aiSummary?: string;
+  groupHealth: AiGroupHealth;
+  keyInsights: AiKeyInsights;
   budgetSuggestions: string[];
   settlementSuggestions: string[];
-  nextActions: string[];
-  bullets?: string[];
   warnings?: string[];
   limitedDataWarning?: string;
 };

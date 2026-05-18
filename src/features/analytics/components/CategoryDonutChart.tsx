@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import GlassCard from '../../../components/GlassCard';
 import { borderRadius, spacing, type ThemeColors, type ThemeTypography } from '../../../components/theme';
@@ -67,8 +67,13 @@ export default function CategoryDonutChart({
   const { theme } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+  const entranceProgress = useRef(new Animated.Value(0)).current;
   const total = Math.max(items.reduce((sum, item) => sum + item.amount, 0), 1);
   const selectedItem = items.find(item => item.id === selectedId) || items[0];
+  const animationKey = useMemo(
+    () => items.map(item => `${item.id}:${item.amount}`).join('|'),
+    [items],
+  );
   const segments = useMemo<DonutSegment[]>(() => {
     const gap = items.length > 1 ? 1.4 : 0;
     let currentAngle = 0;
@@ -85,6 +90,30 @@ export default function CategoryDonutChart({
       };
     });
   }, [items, total]);
+  const chartAnimatedStyle = useMemo(
+    () => ({
+      opacity: entranceProgress,
+      transform: [
+        {
+          scale: entranceProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.92, 1],
+          }),
+        },
+      ],
+    }),
+    [entranceProgress],
+  );
+
+  useEffect(() => {
+    entranceProgress.setValue(0);
+    Animated.timing(entranceProgress, {
+      toValue: 1,
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [animationKey, entranceProgress]);
 
   if (items.length === 0 || totalAmount <= 0) {
     return null;
@@ -92,7 +121,7 @@ export default function CategoryDonutChart({
 
   return (
     <GlassCard style={styles.card} padding="md" opacity={0.7} radius={borderRadius.lg}>
-      <View style={styles.chartArea}>
+      <Animated.View style={[styles.chartArea, chartAnimatedStyle]}>
         <View style={styles.chartWrap}>
           <Svg width={CHART_SIZE} height={CHART_SIZE} viewBox={`0 0 ${CHART_SIZE} ${CHART_SIZE}`}>
             <Circle
@@ -132,7 +161,7 @@ export default function CategoryDonutChart({
             </Text>
           </View>
         </View>
-      </View>
+      </Animated.View>
 
       {selectedItem ? (
         <View style={styles.detailPanel}>
