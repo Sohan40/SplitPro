@@ -21,7 +21,7 @@ const QR_PREFIX = 'splitpro://user-invite/';
 
 export default function MyQrCodeScreen(_props: MyQrCodeScreenProps) {
   const { user } = useAuth();
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
 
@@ -78,8 +78,8 @@ export default function MyQrCodeScreen(_props: MyQrCodeScreenProps) {
   }, [expiresAt]);
 
   const qrValue = token ? `${QR_PREFIX}${token}` : '';
-  const qrForeground = isDark ? '#fafafa' : '#1a1a2e';
-  const qrBackground = isDark ? '#18181b' : '#ffffff';
+  const qrForeground = '#fafafa';
+  const qrBackground = '#18181b';
 
   return (
     <View style={styles.container}>

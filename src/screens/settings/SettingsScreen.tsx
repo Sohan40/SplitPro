@@ -1,6 +1,6 @@
 import React from 'react';
 import { Alert, View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { useTheme, type ThemePreference } from '../../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 import { spacing, type ThemeColors } from '../../components/theme';
 import GlassCard from '../../components/GlassCard';
 import Icon from 'react-native-vector-icons/Ionicons';
@@ -12,15 +12,9 @@ import { auth } from '../../services/firebase';
 import { revokeGoogleAccess } from '../../services/googleAuthService';
 import { calculateUserSummary, hasOutstandingBalances } from '../../utils/balanceCalculator';
 
-const APPEARANCE_OPTIONS: { value: ThemePreference; label: string; icon: string }[] = [
-  { value: 'light', label: 'Light', icon: 'sunny-outline' },
-  { value: 'dark', label: 'Dark', icon: 'moon-outline' },
-  { value: 'system', label: 'System', icon: 'phone-portrait-outline' },
-];
-
 export default function SettingsScreen() {
   const { user, logout } = useAuth();
-  const { theme, preference, setPreference, isDark } = useTheme();
+  const { theme } = useTheme();
   const { currency, options: currencyOptions, setCurrency, formatAmount } = useCurrency();
   const { colors } = theme;
 
@@ -90,41 +84,8 @@ export default function SettingsScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
     >
-      {/* Appearance Section */}
-      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>APPEARANCE</Text>
-      <GlassCard padding="none" style={styles.card}>
-        {APPEARANCE_OPTIONS.map((opt, index) => {
-          const isSelected = preference === opt.value;
-          const isLast = index === APPEARANCE_OPTIONS.length - 1;
-          return (
-            <TouchableOpacity
-              key={opt.value}
-              style={[
-                styles.optionRow,
-                !isLast && styles.optionDivider,
-                !isLast && { borderBottomColor: colors.borderLight },
-              ]}
-              activeOpacity={0.6}
-              onPress={() => setPreference(opt.value)}
-            >
-              <View style={[styles.optionIcon, { backgroundColor: colors.primaryLight }]}>
-                <Icon name={opt.icon} size={18} color={colors.primary} />
-              </View>
-              <Text style={[styles.optionLabel, { color: colors.textPrimary }]}>{opt.label}</Text>
-              {isSelected && (
-                <Icon name="checkmark-circle" size={22} color={colors.primary} />
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </GlassCard>
-
-      <Text style={[styles.hint, { color: colors.textTertiary }]}>
-        System follows your device's appearance setting.
-      </Text>
-
       {/* Currency Section */}
-      <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: spacing.xxxl }]}>
+      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
         DEFAULT CURRENCY
       </Text>
       <GlassCard padding="none" style={styles.card}>
@@ -170,7 +131,7 @@ export default function SettingsScreen() {
           iconTint={colors.warning}
           label="Logout"
           onPress={handleLogout}
-          surface={isDark ? 'rgba(245,158,11,0.14)' : 'rgba(217,119,6,0.10)'}
+          surface="rgba(245,158,11,0.14)"
           textColor={colors.warning}
         />
         <AccountAction

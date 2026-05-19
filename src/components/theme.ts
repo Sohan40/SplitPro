@@ -1,5 +1,5 @@
-// SplitPro Design System — Dual-Theme Support
-// Dark: Obsidian  |  Light: Ivory
+// SplitPro Design System — Dark Theme
+// Dark: Obsidian
 // Adapted from the Premium Glassy UI Redesign
 
 // ─── Color Palettes ────────────────────────────────────────
@@ -47,51 +47,6 @@ export const darkColors = {
   glassDiagonal: 'rgba(30,28,40,0.65)',
   glassHighlight: 0.06,
   glassBorderTop: 'rgba(255,255,255,0.08)',
-};
-
-export const lightColors = {
-  // Core backgrounds
-  background: '#f5f5f9',
-  surface: '#ffffff',
-  surfaceContainer: '#f0f0f5',
-  surfaceContainerHigh: '#e8e8ee',
-  surfaceContainerHighest: '#dcdce4',
-  surfaceAlt: '#f4f4f9',
-
-  // Brand — deeper violet for contrast on light
-  primary: '#7c3aed',
-  primaryDark: '#6d28d9',
-  primaryLight: 'rgba(124,58,237,0.08)',
-
-  // Financial indicators (same for recognition)
-  owed: '#059669',
-  owedLight: 'rgba(5,150,105,0.1)',
-  owes: '#dc2626',
-  owesLight: 'rgba(220,38,38,0.1)',
-
-  // Text
-  textPrimary: '#1a1a2e',
-  textSecondary: '#64748b',
-  textTertiary: '#94a3b8',
-
-  // Borders
-  border: '#e2e2ea',
-  borderLight: 'rgba(124,58,237,0.08)',
-  borderStrong: '#c8c8d2',
-
-  // Misc
-  divider: '#e2e2ea',
-  warning: '#d97706',
-  info: '#2563eb',
-  overlay: 'rgba(0, 0, 0, 0.35)',
-  white: '#ffffff',
-  black: '#09090b',
-
-  // Glass effect (frosted glass on white — subtle shadows)
-  glassBackground: 'rgba(255,255,255,0.75)',
-  glassDiagonal: 'rgba(248,247,255,0.85)',
-  glassHighlight: 0.03,
-  glassBorderTop: 'rgba(124,58,237,0.06)',
 };
 
 export type ThemeColors = typeof darkColors;
@@ -232,10 +187,10 @@ export interface AppTheme {
   shadows: typeof shadows;
 }
 
-export function getTheme(mode: 'light' | 'dark'): AppTheme {
-  const c = mode === 'dark' ? darkColors : lightColors;
+export function getTheme(_mode: 'dark' = 'dark'): AppTheme {
+  const c = darkColors;
   return {
-    dark: mode === 'dark',
+    dark: true,
     colors: c,
     typography: createTypography(c),
     spacing,

@@ -25,7 +25,7 @@ import {
 } from './AuthScreenPrimitives';
 
 export default function LoginScreen({ navigation }: LoginScreenProps) {
-  const { palette, isDark } = useAuthPalette();
+  const { palette } = useAuthPalette();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const keyboardAnim = useRef(new Animated.Value(0)).current;
   const [email, setEmail] = useState('');
@@ -121,7 +121,7 @@ export default function LoginScreen({ navigation }: LoginScreenProps) {
 
   return (
     <Animated.View style={[styles.container, { paddingBottom: keyboardAnim }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={palette.background} />
+      <StatusBar barStyle="light-content" backgroundColor={palette.background} />
       <AuthBackground>
         <ScrollView
           contentContainerStyle={styles.content}

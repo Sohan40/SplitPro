@@ -50,7 +50,7 @@ function getAddMemberErrorMessage(error: any): string {
 export default function CreateGroupScreen({ navigation, route }: CreateGroupScreenProps) {
   const { user } = useAuth();
   const { currency, options: currencyOptions } = useCurrency();
-  const { palette, isDark } = useAuthPalette();
+  const { palette } = useAuthPalette();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const scrollRef = useRef<ScrollView | null>(null);
   const memberSectionY = useRef(0);
@@ -218,7 +218,7 @@ export default function CreateGroupScreen({ navigation, route }: CreateGroupScre
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={palette.background} />
+      <StatusBar barStyle="light-content" backgroundColor={palette.background} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 88 : 0}

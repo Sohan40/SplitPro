@@ -93,13 +93,13 @@ export default function GroupDetailScreen({
   const { groupId, groupName } = route.params;
   const { user } = useAuth();
   const { currency, formatAmount } = useCurrency();
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(
     () => createStyles(colors, typography),
     [colors, typography],
   );
-  const primaryForeground = isDark ? colors.black : colors.white;
+  const primaryForeground = colors.black;
 
   const [group, setGroup] = useState<Group | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -234,7 +234,7 @@ export default function GroupDetailScreen({
   return (
     <View style={styles.container}>
       <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
+        barStyle="light-content"
         backgroundColor={colors.background}
       />
 

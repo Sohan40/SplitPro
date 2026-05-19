@@ -113,3 +113,100 @@ export function calculateSharesSplit(
 
   return participants;
 }
+
+/**
+ * Infer a compact whole-number share setup from already-resolved participant
+ * amounts. This is used when editing older shares expenses, because persisted
+ * expense participants store resolved amounts rather than the original share
+ * counts.
+ */
+export function inferSharesFromSplitAmounts(
+  amount: number,
+  participants: ExpenseParticipant[],
+  maxTotalShares = 100,
+): Record<string, number> {
+  const positiveParticipants = participants.filter(p => p.amount > 0);
+  if (amount <= 0 || positiveParticipants.length === 0) {
+    return participants.reduce<Record<string, number>>((result, participant) => {
+      result[participant.uid] = 0;
+      return result;
+    }, {});
+  }
+
+  const minTotalShares = positiveParticipants.length;
+  let bestShares: number[] | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  let bestTotalShares = Number.POSITIVE_INFINITY;
+
+  for (let totalShares = minTotalShares; totalShares <= maxTotalShares; totalShares += 1) {
+    const targets = positiveParticipants.map(p => (p.amount / amount) * totalShares);
+    const shares = targets.map(target => Math.max(1, Math.round(target)));
+    let shareSum = shares.reduce((sum, value) => sum + value, 0);
+
+    while (shareSum > totalShares) {
+      let bestIndex = -1;
+      let smallestPenalty = Number.POSITIVE_INFINITY;
+
+      shares.forEach((share, index) => {
+        if (share <= 1) return;
+        const penalty =
+          Math.abs((share - 1) - targets[index]) - Math.abs(share - targets[index]);
+        if (penalty < smallestPenalty) {
+          smallestPenalty = penalty;
+          bestIndex = index;
+        }
+      });
+
+      if (bestIndex === -1) break;
+      shares[bestIndex] -= 1;
+      shareSum -= 1;
+    }
+
+    while (shareSum < totalShares) {
+      let bestIndex = 0;
+      let smallestPenalty = Number.POSITIVE_INFINITY;
+
+      shares.forEach((share, index) => {
+        const penalty =
+          Math.abs((share + 1) - targets[index]) - Math.abs(share - targets[index]);
+        if (penalty < smallestPenalty) {
+          smallestPenalty = penalty;
+          bestIndex = index;
+        }
+      });
+
+      shares[bestIndex] += 1;
+      shareSum += 1;
+    }
+
+    const reconstructed = calculateSharesSplit(
+      amount,
+      positiveParticipants.map((participant, index) => ({
+        uid: participant.uid,
+        name: participant.name,
+        shares: shares[index],
+      })),
+    );
+    const score = reconstructed.reduce((sum, participant) => {
+      const original = positiveParticipants.find(p => p.uid === participant.uid);
+      return sum + Math.abs(participant.amount - (original?.amount || 0));
+    }, 0);
+
+    if (
+      score < bestScore - 0.001 ||
+      (Math.abs(score - bestScore) <= 0.001 && totalShares < bestTotalShares)
+    ) {
+      bestScore = score;
+      bestShares = shares;
+      bestTotalShares = totalShares;
+    }
+
+    if (score <= 0.001) break;
+  }
+
+  return participants.reduce<Record<string, number>>((result, participant) => {
+    const positiveIndex = positiveParticipants.findIndex(p => p.uid === participant.uid);
+    result[participant.uid] = positiveIndex >= 0 ? bestShares?.[positiveIndex] ?? 1 : 0;
+    return result;
+  }, {});
+}

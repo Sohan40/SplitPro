@@ -32,6 +32,7 @@ import {
   calculateCustomSplit,
   calculatePercentageSplit,
   calculateSharesSplit,
+  inferSharesFromSplitAmounts,
 } from '../../utils/splitCalculator';
 import Button from '../../components/Button';
 
@@ -156,6 +157,10 @@ export default function AddExpenseScreen({
               setCategory(exp.category);
               setSplitType(exp.splitType);
               setPaidByUid(exp.paidBy.uid);
+              const inferredShares =
+                exp.splitType === 'shares'
+                  ? inferSharesFromSplitAmounts(exp.amount, exp.participants)
+                  : {};
 
               groupData.members.forEach((member) => {
                 const participant = exp.participants.find(
@@ -169,7 +174,9 @@ export default function AddExpenseScreen({
                   percent: participant
                     ? ((participant.amount / exp.amount) * 100).toFixed(2)
                     : '0',
-                  shares: participant ? '1' : '0',
+                  shares: participant
+                    ? String(inferredShares[member.uid] ?? 1)
+                    : '0',
                 };
               });
             }

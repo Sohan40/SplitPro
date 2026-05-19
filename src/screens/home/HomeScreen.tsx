@@ -27,10 +27,10 @@ import { calculateUserSummary } from '../../utils/balanceCalculator';
 export default function HomeScreen({ navigation }: HomeScreenProps) {
   const { user } = useAuth();
   const { currency, formatAmount } = useCurrency();
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
-  const primaryForeground = isDark ? colors.black : colors.white;
+  const primaryForeground = colors.black;
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -93,7 +93,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
 
       {/* Glass sticky header */}
       <GlassHeader height={56}>

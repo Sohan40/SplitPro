@@ -71,7 +71,7 @@ function getStatusLabel(status: string): string {
 export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const { user } = useAuth();
   const { formatAmount } = useCurrency();
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const entitlement = useAiEntitlement();
@@ -133,11 +133,11 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const aiEntitlement = user?.entitlement?.ai;
   const accessUntil = formatDate(aiEntitlement?.expiresAt);
   const usageResetAt = formatDate(user?.aiUsage?.resetAt);
-  const primaryForeground = isDark ? colors.black : colors.white;
+  const primaryForeground = colors.black;
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       <AuthBackground>
         <ScrollView
           contentContainerStyle={styles.content}

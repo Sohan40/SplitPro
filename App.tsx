@@ -1,6 +1,10 @@
 import React from 'react';
 import { StatusBar, ActivityIndicator, View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  DarkTheme as NavigationDarkTheme,
+  NavigationContainer,
+  type Theme as NavigationTheme,
+} from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
@@ -16,7 +20,22 @@ configureGoogleSignIn();
 
 function Root() {
   const { user, loading } = useAuth();
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
+  const navigationTheme = React.useMemo<NavigationTheme>(
+    () => ({
+      ...NavigationDarkTheme,
+      colors: {
+        ...NavigationDarkTheme.colors,
+        primary: theme.colors.primary,
+        background: theme.colors.background,
+        card: theme.colors.surface,
+        text: theme.colors.textPrimary,
+        border: theme.colors.border,
+        notification: theme.colors.primary,
+      },
+    }),
+    [theme.colors],
+  );
 
   // Set up push notification handlers (foreground, background tap, quit-state tap)
   useNotificationHandler();
@@ -32,10 +51,10 @@ function Root() {
   return (
     <>
       <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
+        barStyle="light-content"
         backgroundColor={theme.colors.surface}
       />
-      <NavigationContainer ref={navigationRef}>
+      <NavigationContainer ref={navigationRef} theme={navigationTheme}>
         <AppNavigator isAuthenticated={!!user} />
       </NavigationContainer>
     </>

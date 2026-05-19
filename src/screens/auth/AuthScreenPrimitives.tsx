@@ -34,7 +34,7 @@ export const authFallbackColors = {
 
 export type AuthPalette = typeof authFallbackColors;
 
-export function createAuthPalette(colors: ThemeColors, isDark: boolean): AuthPalette {
+export function createAuthPalette(colors: ThemeColors): AuthPalette {
   return {
     background: colors.background,
     surface: colors.surfaceContainer,
@@ -43,7 +43,7 @@ export function createAuthPalette(colors: ThemeColors, isDark: boolean): AuthPal
     placeholder: colors.textTertiary,
     primary: colors.primary,
     primaryDark: colors.primaryDark,
-    primaryText: isDark ? colors.black : colors.white,
+    primaryText: colors.black,
     muted: colors.textSecondary,
     mutedDim: colors.textTertiary,
     border: colors.borderLight,
@@ -54,10 +54,10 @@ export function createAuthPalette(colors: ThemeColors, isDark: boolean): AuthPal
 }
 
 export function useAuthPalette() {
-  const { theme, isDark } = useTheme();
-  const palette = React.useMemo(() => createAuthPalette(theme.colors, isDark), [theme.colors, isDark]);
+  const { theme } = useTheme();
+  const palette = React.useMemo(() => createAuthPalette(theme.colors), [theme.colors]);
 
-  return React.useMemo(() => ({ palette, isDark }), [palette, isDark]);
+  return React.useMemo(() => ({ palette, isDark: true }), [palette]);
 }
 
 type AuthBackgroundProps = {

@@ -593,7 +593,7 @@ function buildYearTrendItems({
 export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysisScreenProps) {
   const { groupId, groupName, monthKey: initialMonthKey } = route.params;
   const { currency, formatAmount } = useCurrency();
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { user } = useAuth();
   const { isAiEntitled, isLoading: entitlementLoading } = useAiEntitlement();
   const insets = useSafeAreaInsets();
@@ -822,7 +822,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
   if (loadState === 'loading') {
     return (
       <View style={styles.centerContainer}>
-        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
         <ActivityIndicator color={colors.primary} size="large" />
         <Text style={styles.loadingText}>Loading spend analysis...</Text>
       </View>
@@ -832,7 +832,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
   if (loadState === 'error' || !group || !basicPreview) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+        <StatusBar barStyle="light-content" backgroundColor={colors.background} />
         <EmptyState
           icon="alert-circle-outline"
           title="Could not load analysis"
@@ -845,7 +845,7 @@ export default function SpendAnalysisScreen({ route, navigation }: SpendAnalysis
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       <View style={styles.stickyTabShell}>
         <View style={styles.tabBar} accessibilityRole="tablist">
           {ANALYSIS_TABS.map(tab => {

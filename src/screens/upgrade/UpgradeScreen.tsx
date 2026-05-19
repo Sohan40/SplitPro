@@ -83,7 +83,7 @@ function SectionTitle({ title, subtitle, styles }: SectionTitleProps) {
 }
 
 export default function UpgradeScreen() {
-  const { theme, isDark } = useTheme();
+  const { theme } = useTheme();
   const { colors, typography } = theme;
   const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
   const entitlement = useAiEntitlement();
@@ -106,7 +106,7 @@ export default function UpgradeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
           <View style={styles.heroBadge}>
