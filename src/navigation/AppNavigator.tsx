@@ -12,7 +12,7 @@ interface AppNavigatorProps {
 
 export default function AppNavigator({ isAuthenticated }: AppNavigatorProps) {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none' }}>
       {isAuthenticated ? (
         <Stack.Group>
           <Stack.Screen name="Main" component={MainTabs} />

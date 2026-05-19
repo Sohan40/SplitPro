@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { spacing, type ThemeColors, type ThemeTypography } from '../../components/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -10,7 +11,7 @@ import { warnUnlessPermissionDeniedAfterSignOut } from '../../services/firestore
 import { notificationService } from '../../services/notificationService';
 import type { Expense } from '../../models/Expense';
 import type { Group } from '../../models/Group';
-import type { ExpenseDetailScreenProps } from '../../navigation/types';
+import type { ExpenseDetailScreenProps, MainTabParamList } from '../../navigation/types';
 import Card from '../../components/Card';
 import Avatar from '../../components/Avatar';
 import CategoryIcon from '../../components/CategoryIcon';
@@ -35,7 +36,7 @@ function getExpenseCreatorName(expense: Expense, group: Group | null, currentUse
 }
 
 export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetailScreenProps) {
-  const { expenseId, groupId } = route.params;
+  const { expenseId, groupId, returnToActivity } = route.params;
   const { user } = useAuth();
   const { currency, formatAmount } = useCurrency();
   const { theme } = useTheme();
@@ -45,6 +46,23 @@ export default function ExpenseDetailScreen({ route, navigation }: ExpenseDetail
   const [group, setGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!returnToActivity) return;
+
+    const unsubscribe = navigation.addListener('beforeRemove', event => {
+      if (event.data.action.type !== 'GO_BACK' && event.data.action.type !== 'POP') {
+        return;
+      }
+
+      event.preventDefault();
+
+      const parentNavigation = navigation.getParent<BottomTabNavigationProp<MainTabParamList>>();
+      parentNavigation?.navigate('Activity');
+    });
+
+    return unsubscribe;
+  }, [navigation, returnToActivity]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(

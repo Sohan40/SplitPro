@@ -182,7 +182,7 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
       <TouchableOpacity
         onPress={() => navigation.navigate('Groups', {
           screen: 'ExpenseDetail',
-          params: { groupId: expense.groupId, expenseId: expense.id }
+          params: { groupId: expense.groupId, expenseId: expense.id, returnToActivity: true },
         })}
         activeOpacity={0.7}
         style={styles.itemWrapper}
@@ -212,7 +212,7 @@ export default function ActivityScreen({ navigation }: ActivityScreenProps) {
     <TouchableOpacity
       onPress={() => navigation.navigate('Groups', {
         screen: 'ExpenseDetail',
-        params: { groupId: activity.groupId, expenseId: activity.expenseId },
+        params: { groupId: activity.groupId, expenseId: activity.expenseId, returnToActivity: true },
       })}
       activeOpacity={0.7}
       style={styles.itemWrapper}

@@ -287,7 +287,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             )}
           </View>
 
-          <Text style={styles.version}>SplitPro v1.0.0</Text>
+          <Text style={styles.version}>SplitPro v1.0.9</Text>
         </ScrollView>
       </AuthBackground>
 

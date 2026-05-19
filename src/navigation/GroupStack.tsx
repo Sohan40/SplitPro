@@ -27,7 +27,7 @@ export default function GroupStack() {
         headerTitleStyle: { fontWeight: '600', color: colors.textPrimary },
         headerShadowVisible: false,
         contentStyle: { backgroundColor: colors.background },
-        animation: 'slide_from_right',
+        animation: 'none',
       }}>
       <Stack.Screen name="GroupList" component={GroupListScreen} options={{ title: 'Groups' }} />
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ title: 'Create Group' }} />
@@ -35,14 +35,13 @@ export default function GroupStack() {
         name="GroupDetail"
         component={GroupDetailScreen}
         options={({ route }) => ({
-          animation: 'none',
           title: route.params.groupName,
         })}
       />
       <Stack.Screen
         name="AddExpense"
         component={AddExpenseScreen}
-        options={{ animation: 'none', title: 'Add Expense' }}
+        options={{ title: 'Add Expense' }}
       />
       <Stack.Screen name="ExpenseDetail" component={ExpenseDetailScreen} options={{ title: 'Expense Details' }} />
       <Stack.Screen name="SettleUp" component={SettleUpScreen} options={{ title: 'Settle Up' }} />

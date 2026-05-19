@@ -7,6 +7,7 @@ import { useCurrency } from '../../context/CurrencyContext';
 import { groupService } from '../../services/groupService';
 import { userService } from '../../services/userService';
 import type { Group } from '../../models/Group';
+import type { GroupMembersScreenProps } from '../../navigation/types';
 import GlassCard from '../../components/GlassCard';
 import Avatar from '../../components/Avatar';
 import BalanceBadge from '../../components/BalanceBadge';
@@ -35,8 +36,8 @@ function getMemberInviteErrorMessage(error: any): string {
   return error?.message || 'Failed to add member.';
 }
 
-export default function GroupMembersScreen({ route, navigation }: any) {
-  const { groupId } = route.params;
+export default function GroupMembersScreen({ route, navigation }: GroupMembersScreenProps) {
+  const { groupId, openAddMember } = route.params;
   const { user } = useAuth();
   const { theme } = useTheme();
   const { currency } = useCurrency();
@@ -70,6 +71,13 @@ export default function GroupMembersScreen({ route, navigation }: any) {
 
     return unsubscribe;
   }, [groupId]);
+
+  useEffect(() => {
+    if (!openAddMember) return;
+
+    setIsModalVisible(true);
+    navigation.setParams({ openAddMember: false });
+  }, [navigation, openAddMember]);
 
   const handleAddMember = async () => {
     if (!email.trim()) return;
@@ -152,8 +160,7 @@ export default function GroupMembersScreen({ route, navigation }: any) {
               } else {
                 await groupService.removeMemberFromGroup(groupId, user.id);
               }
-              // Navigate back to Home
-              navigation.navigate('Home');
+              navigation.popToTop();
             } catch (error: any) {
               Alert.alert('Error', error.message || 'Failed to leave group');
             }

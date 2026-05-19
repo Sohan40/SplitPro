@@ -14,9 +14,9 @@ export type GroupStackParamList = {
   GroupList: undefined;
   CreateGroup: { scannedMember?: GroupMember; scannedAt?: number } | undefined;
   GroupDetail: { groupId: string; groupName: string };
-  GroupMembers: { groupId: string };
+  GroupMembers: { groupId: string; openAddMember?: boolean };
   AddExpense: { groupId: string; groupName: string; expenseId?: string };
-  ExpenseDetail: { groupId: string; expenseId: string };
+  ExpenseDetail: { groupId: string; expenseId: string; returnToActivity?: boolean };
   SettleUp: { groupId: string; groupName: string };
   SpendAnalysis: { groupId: string; groupName: string; monthKey?: string };
   ScanQrCode: {
@@ -61,6 +61,7 @@ export type HomeScreenProps = CompositeScreenProps<
 export type GroupListScreenProps = NativeStackScreenProps<GroupStackParamList, 'GroupList'>;
 export type CreateGroupScreenProps = NativeStackScreenProps<GroupStackParamList, 'CreateGroup'>;
 export type GroupDetailScreenProps = NativeStackScreenProps<GroupStackParamList, 'GroupDetail'>;
+export type GroupMembersScreenProps = NativeStackScreenProps<GroupStackParamList, 'GroupMembers'>;
 export type AddExpenseScreenProps = NativeStackScreenProps<GroupStackParamList, 'AddExpense'>;
 export type ExpenseDetailScreenProps = NativeStackScreenProps<GroupStackParamList, 'ExpenseDetail'>;
 export type SettleUpScreenProps = NativeStackScreenProps<GroupStackParamList, 'SettleUp'>;

@@ -1,5 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import {
+  Alert,
+  type StyleProp,
+  type ViewStyle,
   View,
   Text,
   StyleSheet,
@@ -7,6 +10,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   StatusBar,
+  Modal,
 } from 'react-native';
 import {
   spacing,
@@ -33,6 +37,26 @@ type ExpenseSection = {
   title: string;
   data: Expense[];
 };
+
+type HeaderMenuButtonProps = {
+  color: string;
+  onPress: () => void;
+  style: StyleProp<ViewStyle>;
+};
+
+function HeaderMenuButton({ color, onPress, style }: HeaderMenuButtonProps) {
+  return (
+    <TouchableOpacity
+      activeOpacity={0.7}
+      accessibilityLabel="Group actions"
+      accessibilityRole="button"
+      onPress={onPress}
+      style={style}
+    >
+      <Icon name="ellipsis-vertical" size={22} color={color} />
+    </TouchableOpacity>
+  );
+}
 
 function getExpenseDateKey(expense: Expense): string {
   return new Date(expense.createdAt).toDateString();
@@ -104,14 +128,31 @@ export default function GroupDetailScreen({
   const [group, setGroup] = useState<Group | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
+  const [menuVisible, setMenuVisible] = useState(false);
   const expenseSections = useMemo(
     () => groupExpensesByDate(expenses),
     [expenses],
   );
+  const openMenu = useCallback(() => setMenuVisible(true), []);
+  const renderHeaderMenuButton = useCallback(
+    () => (
+      <HeaderMenuButton
+        color={colors.textPrimary}
+        onPress={openMenu}
+        style={styles.headerMenuButton}
+      />
+    ),
+    [colors.textPrimary, openMenu, styles.headerMenuButton],
+  );
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: groupName,
+      headerRight: renderHeaderMenuButton,
+    });
+  }, [groupName, navigation, renderHeaderMenuButton]);
 
   useEffect(() => {
-    navigation.setOptions({ title: groupName });
-
     setLoading(true);
     let groupUnsubscribe: () => void;
     let expensesUnsubscribe: () => void;
@@ -137,7 +178,54 @@ export default function GroupDetailScreen({
       if (groupUnsubscribe) groupUnsubscribe();
       if (expensesUnsubscribe) expensesUnsubscribe();
     };
-  }, [groupId, groupName, navigation]);
+  }, [groupId]);
+
+  const handleOpenAddMember = () => {
+    setMenuVisible(false);
+    navigation.navigate('GroupMembers', { groupId, openAddMember: true });
+  };
+
+  const handleLeaveGroup = () => {
+    setMenuVisible(false);
+
+    if (!group || !user) return;
+
+    const myGroupBalance = group.balances?.[user.id] || 0;
+    if (Math.abs(myGroupBalance) > 0.01) {
+      Alert.alert(
+        'Cannot Leave Group',
+        'You must settle all your balances before you can leave.',
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Leave Group',
+      group.memberIds.length === 1
+        ? 'You are the last member. Leaving will permanently delete this group. Are you sure?'
+        : 'Are you sure you want to leave this group?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (group.memberIds.length === 1) {
+                await groupService.deleteGroup(groupId);
+              } else {
+                await groupService.removeMemberFromGroup(groupId, user.id);
+              }
+
+              navigation.popToTop();
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to leave group');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const renderExpense = ({ item }: { item: Expense }) => {
     const participantMe = item.participants.find(p => p.uid === user?.id);
@@ -237,6 +325,39 @@ export default function GroupDetailScreen({
         barStyle="light-content"
         backgroundColor={colors.background}
       />
+
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <View style={styles.menuOverlay}>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setMenuVisible(false)}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.menuCard}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleOpenAddMember}
+              style={[styles.menuItem, styles.menuDivider]}
+            >
+              <Icon name="person-add-outline" size={19} color={colors.primary} />
+              <Text style={styles.menuItemText}>Add member</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleLeaveGroup}
+              style={styles.menuItem}
+            >
+              <Icon name="exit-outline" size={19} color={colors.owes} />
+              <Text style={[styles.menuItemText, { color: colors.owes }]}>Leave group</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Balance Hero Header */}
       <View style={styles.header}>
@@ -352,6 +473,44 @@ const createStyles = (colors: ThemeColors, typography: ThemeTypography) =>
     header: {
       paddingTop: spacing.xl,
       paddingBottom: spacing.lg,
+    },
+    headerMenuButton: {
+      alignItems: 'center',
+      height: 40,
+      justifyContent: 'center',
+      marginRight: spacing.xs,
+      width: 40,
+    },
+    menuOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.16)',
+    },
+    menuCard: {
+      position: 'absolute',
+      right: spacing.md,
+      top: spacing.huge,
+      minWidth: 188,
+      overflow: 'hidden',
+      backgroundColor: colors.surfaceContainerHigh,
+      borderColor: colors.borderStrong,
+      borderRadius: borderRadius.md,
+      borderWidth: 1,
+      ...shadows.lg,
+    },
+    menuItem: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      minHeight: 52,
+      paddingHorizontal: spacing.lg,
+      gap: spacing.md,
+    },
+    menuDivider: {
+      borderBottomColor: colors.borderLight,
+      borderBottomWidth: 1,
+    },
+    menuItemText: {
+      ...typography.bodyBold,
+      flex: 1,
     },
     balanceSummary: {
       alignItems: 'center',
