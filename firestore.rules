@@ -134,6 +134,15 @@ service cloud.firestore {
           'food',
           'transport',
           'entertainment',
+          'shopping',
+          'health',
+          'travel',
+          'education',
+          'subscriptions',
+          'gifts',
+          'pets',
+          'fitness',
+          'sports',
           'others',
           'payment'
         ]
@@ -159,6 +168,19 @@ service cloud.firestore {
           request.resource.data.groupId,
           request.resource.data.paidBy.uid
         );
+    }
+
+    function expenseImmutableFieldsUnchanged(expenseId) {
+      return request.resource.data.id == resource.data.id
+        && request.resource.data.id == expenseId
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    function validExpenseUpdater() {
+      return ('updatedBy' in request.resource.data)
+        && request.resource.data.updatedBy == request.auth.uid;
     }
 
     function notificationFieldsAreSafe() {
@@ -242,8 +264,8 @@ service cloud.firestore {
         && request.resource.data.createdBy == request.auth.uid;
       allow update: if isGroupMember(resource.data.groupId)
         && validExpense()
-        && request.resource.data.groupId == resource.data.groupId
-        && request.resource.data.id == expenseId;
+        && expenseImmutableFieldsUnchanged(expenseId)
+        && validExpenseUpdater();
       allow delete: if isGroupMember(resource.data.groupId);
     }
 
@@ -259,6 +281,11 @@ service cloud.firestore {
     }
 
     match /groups/{groupId}/aiInsights/{insightId} {
+      allow read: if isGroupMember(groupId);
+      allow write: if false;
+    }
+
+    match /groups/{groupId}/activity/{activityId} {
       allow read: if isGroupMember(groupId);
       allow write: if false;
     }

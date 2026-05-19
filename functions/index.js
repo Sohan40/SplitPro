@@ -1,4 +1,4 @@
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
@@ -13,6 +13,7 @@ const {
   createAddMemberByEmailFunction,
   createResolveUserByEmailFunction,
 } = require("./src/groups/userEmailLookup");
+const { createHandleExpenseUpdateFunction } = require("./src/expenses/expenseUpdateActivity");
 
 initializeApp();
 
@@ -28,6 +29,7 @@ exports.resolveQrInviteToken = createResolveQrInviteTokenFunction(db);
 exports.addMemberByQrToken = createAddMemberByQrTokenFunction(db);
 exports.resolveUserByEmail = createResolveUserByEmailFunction(db);
 exports.addMemberByEmail = createAddMemberByEmailFunction(db);
+exports.handleExpenseUpdateActivity = createHandleExpenseUpdateFunction(db, onDocumentUpdated);
 
 /**
  * Cloud Function: sendPushOnNotificationCreate
@@ -52,7 +54,7 @@ exports.sendPushOnNotificationCreate = onDocumentCreated(
     }
 
     const notification = snapshot.data();
-    const { userId, title, body, type, data } = notification;
+    const { userId, title, body, type, subtype, data } = notification;
 
     if (!userId) {
       console.error("Notification missing userId, skipping.");
@@ -62,7 +64,7 @@ exports.sendPushOnNotificationCreate = onDocumentCreated(
     // Look up the target user's FCM tokens
     const userDoc = await db.collection("users").doc(userId).get();
     if (!userDoc.exists) {
-      console.log(`User ${userId} not found, skipping push.`);
+      console.log("Notification target user not found, skipping push.");
       return;
     }
 
@@ -70,7 +72,7 @@ exports.sendPushOnNotificationCreate = onDocumentCreated(
     const fcmTokens = userData.fcmTokens;
 
     if (!fcmTokens || fcmTokens.length === 0) {
-      console.log(`User ${userId} has no FCM tokens, skipping push.`);
+      console.log("Notification target has no FCM tokens, skipping push.");
       return;
     }
 
@@ -83,6 +85,7 @@ exports.sendPushOnNotificationCreate = onDocumentCreated(
       data: {
         type: type || "general",
         notificationId: event.params.notificationId,
+        ...(subtype ? { subtype } : {}),
         ...(data?.groupId ? { groupId: data.groupId } : {}),
         ...(data?.expenseId ? { expenseId: data.expenseId } : {}),
       },
@@ -96,13 +99,16 @@ exports.sendPushOnNotificationCreate = onDocumentCreated(
 
     // Send to all of the user's devices
     const tokensToRemove = [];
+    let successCount = 0;
+    const failedByCode = {};
 
     const sendPromises = fcmTokens.map(async (token) => {
       try {
         await messaging.send({ ...payload, token });
-        console.log(`Push sent to token: ${token.substring(0, 10)}...`);
+        successCount += 1;
       } catch (error) {
-        console.error(`Error sending to token ${token.substring(0, 10)}...:`, error.code);
+        const code = error.code || "unknown";
+        failedByCode[code] = (failedByCode[code] || 0) + 1;
 
         // Clean up invalid/expired tokens
         if (
@@ -115,6 +121,12 @@ exports.sendPushOnNotificationCreate = onDocumentCreated(
     });
 
     await Promise.all(sendPromises);
+    console.log("Push notification send complete", {
+      type: type || "general",
+      subtype: subtype || null,
+      successCount,
+      failedByCode,
+    });
 
     // Remove any stale tokens from Firestore
     if (tokensToRemove.length > 0) {
@@ -125,7 +137,7 @@ exports.sendPushOnNotificationCreate = onDocumentCreated(
         .update({
           fcmTokens: FieldValue.arrayRemove(...tokensToRemove),
         });
-      console.log(`Removed ${tokensToRemove.length} stale token(s) for user ${userId}`);
+      console.log(`Removed ${tokensToRemove.length} stale FCM token(s).`);
     }
   }
 );

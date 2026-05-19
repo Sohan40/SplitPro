@@ -281,6 +281,37 @@ async function main() {
       }));
     });
 
+    await runTest('expense update requires updatedBy', async () => {
+      await assertFails(updateDoc(doc(bobDb, 'expenses/expense-2'), {
+        category: 'shopping',
+        updatedAt: 1710000004000,
+      }));
+    });
+
+    await runTest('expense update requires updatedBy to match auth user', async () => {
+      await assertFails(updateDoc(doc(bobDb, 'expenses/expense-2'), {
+        category: 'shopping',
+        updatedBy: 'alice',
+        updatedAt: 1710000004000,
+      }));
+    });
+
+    await runTest('expense update cannot change immutable fields', async () => {
+      await assertFails(updateDoc(doc(bobDb, 'expenses/expense-2'), {
+        createdBy: 'bob',
+        updatedBy: 'bob',
+        updatedAt: 1710000004000,
+      }));
+    });
+
+    await runTest('group member can update another member expense category', async () => {
+      await assertSucceeds(updateDoc(doc(bobDb, 'expenses/expense-1'), {
+        category: 'shopping',
+        updatedBy: 'bob',
+        updatedAt: 1710000004000,
+      }));
+    });
+
     await runTest('group member can query group expenses', async () => {
       await assertSucceeds(getDocs(query(
         collection(aliceDb, 'expenses'),
@@ -409,6 +440,50 @@ async function main() {
         createdAt: 1710000000000,
         expiresAt: 1710000000000,
       }));
+    });
+
+    await runTest('group activity read is member-only', async () => {
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        const db = context.firestore();
+        await setDoc(doc(db, 'groups/group-1/activity/activity-1'), {
+          id: 'activity-1',
+          type: 'expense_updated',
+          groupId: 'group-1',
+          expenseId: 'expense-1',
+          actorUid: 'alice',
+          actorName: 'Alice',
+          expenseTitle: 'Dinner',
+          changedFields: ['Amount'],
+          previousSummary: { amount: 120, category: 'food', paidByName: 'Alice', splitType: 'equal', participantCount: 2 },
+          newSummary: { amount: 140, category: 'food', paidByName: 'Alice', splitType: 'equal', participantCount: 2 },
+          createdAt: 1710000005000,
+          involvedMemberIds: ['bob'],
+          demo: false,
+        });
+      });
+
+      await assertSucceeds(getDoc(doc(aliceDb, 'groups/group-1/activity/activity-1')));
+      await assertFails(getDoc(doc(charlieDb, 'groups/group-1/activity/activity-1')));
+    });
+
+    await runTest('clients cannot forge group activity', async () => {
+      await assertFails(setDoc(doc(aliceDb, 'groups/group-1/activity/activity-2'), {
+        id: 'activity-2',
+        type: 'expense_updated',
+        groupId: 'group-1',
+        expenseId: 'expense-1',
+        actorUid: 'alice',
+        actorName: 'Alice',
+        expenseTitle: 'Dinner',
+        changedFields: ['Amount'],
+        createdAt: 1710000006000,
+        involvedMemberIds: ['bob'],
+        demo: false,
+      }));
+      await assertFails(updateDoc(doc(aliceDb, 'groups/group-1/activity/activity-1'), {
+        expenseTitle: 'Forged',
+      }));
+      await assertFails(deleteDoc(doc(aliceDb, 'groups/group-1/activity/activity-1')));
     });
 
     await runTest('member can delete expense', async () => {
